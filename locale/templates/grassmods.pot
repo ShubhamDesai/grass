@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-06-28 15:41+0000\n"
+"POT-Creation-Date: 2025-07-05 15:46+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -377,7 +377,7 @@ msgstr ""
 #: ../general/g.list/list.c:89 ../general/g.mapset/main.c:174
 #: ../imagery/i.group/main.c:124 ../raster/r.category/main.c:143
 #: ../raster/r.describe/dumplist.c:47 ../raster/r.proj/main.c:345
-#: ../raster/r.univar/stats.c:96 ../raster/r.univar/stats.c:347
+#: ../raster/r.univar/stats.c:96 ../raster/r.univar/stats.c:396
 #: ../raster/r.what.color/main.c:246 ../raster/r.what/main.c:280
 #: ../vector/v.category/main.c:255 ../vector/v.category/main.c:320
 #: ../vector/v.distance/main.c:310 ../vector/v.info/print.c:866
@@ -391,7 +391,7 @@ msgstr ""
 #: ../raster/r.mask.status/main.c:111 ../raster/r.object.geometry/main.c:401
 #: ../raster/r.profile/main.c:296 ../raster/r.proj/main.c:370
 #: ../raster/r.proj/main.c:545 ../raster/r.report/prt_json.c:200
-#: ../raster/r.stats/main.c:408 ../raster/r.univar/stats.c:435
+#: ../raster/r.stats/main.c:408 ../raster/r.univar/stats.c:493
 #: ../raster/r.what.color/main.c:290 ../raster/r.what/main.c:619
 #: ../vector/v.category/main.c:307 ../vector/v.category/main.c:954
 #: ../vector/v.distance/main.c:1799 ../vector/v.info/main.c:106
@@ -593,7 +593,7 @@ msgid "Test succeeded."
 msgstr ""
 
 #: ../db/db.select/main.c:140 ../raster/r.object.geometry/main.c:118
-#: ../raster/r.quantile/main.c:346 ../raster/r.regression.line/main.c:77
+#: ../raster/r.quantile/main.c:346 ../raster/r.regression.line/main.c:92
 #: ../raster/r.regression.multi/main.c:171
 #: ../raster/r.stats.quantile/main.c:368 ../raster/r.stats/main.c:235
 #: ../raster/r.univar/r.univar_main.c:195
@@ -1763,7 +1763,7 @@ msgstr ""
 #: ../raster/r.quantile/main.c:297 ../raster/r.random.cells/main.c:49
 #: ../raster/r.random.surface/main.c:56 ../raster/r.random/main.c:53
 #: ../raster/r.reclass/main.c:51 ../raster/r.recode/main.c:47
-#: ../raster/r.region/main.c:45 ../raster/r.regression.line/main.c:45
+#: ../raster/r.region/main.c:45 ../raster/r.regression.line/main.c:51
 #: ../raster/r.regression.multi/main.c:129 ../raster/r.relief/main.c:104
 #: ../raster/r.report/main.c:67 ../raster/r.resamp.bspline/main.c:77
 #: ../raster/r.resamp.filter/main.c:422 ../raster/r.resamp.interp/main.c:85
@@ -2597,7 +2597,7 @@ msgstr ""
 #: ../raster/r.mfilter/main.c:67 ../raster/r.mode/main.c:54
 #: ../raster/r.neighbors/main.c:183 ../raster/r.object.geometry/main.c:77
 #: ../raster/r.quant/main.c:49 ../raster/r.quantile/main.c:299
-#: ../raster/r.regression.line/main.c:46
+#: ../raster/r.regression.line/main.c:52
 #: ../raster/r.regression.multi/main.c:130 ../raster/r.report/main.c:68
 #: ../raster/r.statistics/main.c:54 ../raster/r.stats.quantile/main.c:566
 #: ../raster/r.stats.zonal/main.c:105 ../raster/r.stats/main.c:110
@@ -5710,16 +5710,17 @@ msgstr ""
 #: ../general/g.proj/output.c:360 ../general/g.region/main.c:471
 #: ../general/g.version/main.c:140 ../raster/r.describe/dumplist.c:37
 #: ../raster/r.info/main.c:147 ../raster/r.proj/main.c:487
-#: ../raster/r.univar/stats.c:104 ../raster/r.univar/stats.c:148
-#: ../raster/r.univar/stats.c:390 ../raster/r.what.color/main.c:52
-#: ../vector/v.category/main.c:248 ../vector/v.category/main.c:915
-#: ../vector/v.distance/main.c:1578 ../vector/v.info/print.c:824
-#: ../vector/v.info/print.c:860 ../vector/v.univar/main.c:609
+#: ../raster/r.regression.line/main.c:101 ../raster/r.univar/stats.c:104
+#: ../raster/r.univar/stats.c:148 ../raster/r.univar/stats.c:439
+#: ../raster/r.what.color/main.c:52 ../vector/v.category/main.c:248
+#: ../vector/v.category/main.c:915 ../vector/v.distance/main.c:1578
+#: ../vector/v.info/print.c:824 ../vector/v.info/print.c:860
+#: ../vector/v.univar/main.c:609
 msgid "Failed to initialize JSON object. Out of memory?"
 msgstr ""
 
 #: ../general/g.list/list.c:139 ../general/g.mapset/main.c:37
-#: ../general/g.mapsets/list.c:34
+#: ../general/g.mapsets/list.c:34 ../raster/r.regression.line/main.c:269
 msgid "Failed to serialize JSON to pretty format."
 msgstr ""
 
@@ -6521,7 +6522,8 @@ msgstr ""
 
 #: ../general/g.proj/main.c:94 ../general/g.region/main.c:149
 #: ../general/g.version/main.c:120 ../imagery/i.group/main.c:113
-#: ../raster/r.proj/main.c:240 ../raster/r.univar/r.univar_main.c:103
+#: ../raster/r.proj/main.c:240 ../raster/r.regression.line/main.c:83
+#: ../raster/r.univar/r.univar_main.c:103
 #: ../raster/r.univar/r3.univar_main.c:63
 msgid "This flag is deprecated and will be removed in a future release. Use format=shell instead."
 msgstr ""
@@ -6643,7 +6645,8 @@ msgstr ""
 
 #: ../general/g.proj/main.c:277 ../general/g.region/main.c:427
 #: ../general/g.version/main.c:153 ../imagery/i.group/main.c:137
-#: ../raster/r.proj/main.c:270 ../raster/r.univar/r.univar_main.c:222
+#: ../raster/r.proj/main.c:270 ../raster/r.regression.line/main.c:114
+#: ../raster/r.univar/r.univar_main.c:222
 #: ../raster/r.univar/r3.univar_main.c:174 ../vector/v.category/main.c:232
 msgid "Flag 'g' is deprecated and will be removed in a future release. Please use format=shell instead."
 msgstr ""
@@ -6773,6 +6776,7 @@ msgid "Print the maximum bounding box in lat/long on WGS84"
 msgstr ""
 
 #: ../general/g.region/main.c:147 ../imagery/i.group/main.c:111
+#: ../raster/r.regression.line/main.c:81
 msgid "Print in shell script style [deprecated]"
 msgstr ""
 
@@ -11840,7 +11844,7 @@ msgstr ""
 msgid "prediction"
 msgstr ""
 
-#: ../imagery/i.svm.predict/main.c:54 ../raster/r.regression.line/main.c:47
+#: ../imagery/i.svm.predict/main.c:54 ../raster/r.regression.line/main.c:53
 #: ../raster/r.regression.multi/main.c:131
 msgid "regression"
 msgstr ""
@@ -13355,7 +13359,6 @@ msgstr ""
 
 #: ../locale/scriptstrings/i.oif_to_translate.c:6
 #: ../locale/scriptstrings/t.info_to_translate.c:9
-#: ../raster/r.regression.line/main.c:69
 #: ../raster/r.regression.multi/main.c:163
 msgid "Print in shell script style"
 msgstr ""
@@ -25676,23 +25679,27 @@ msgstr ""
 msgid "Raster map to align to"
 msgstr ""
 
-#: ../raster/r.regression.line/main.c:49
+#: ../raster/r.regression.line/main.c:55
 msgid "Calculates linear regression from two raster maps: y = a + b*x."
 msgstr ""
 
-#: ../raster/r.regression.line/main.c:54
+#: ../raster/r.regression.line/main.c:60
 #: ../raster/r.regression.multi/main.c:138
 msgid "Map for x coefficient"
 msgstr ""
 
-#: ../raster/r.regression.line/main.c:58
+#: ../raster/r.regression.line/main.c:64
 #: ../raster/r.regression.multi/main.c:142
 msgid "Map for y coefficient"
 msgstr ""
 
-#: ../raster/r.regression.line/main.c:64
+#: ../raster/r.regression.line/main.c:70
 #: ../raster/r.regression.multi/main.c:158
 msgid "ASCII file for storing regression coefficients (output to screen if file not specified)."
+msgstr ""
+
+#: ../raster/r.regression.line/main.c:117
+msgid "The -g flag cannot be used with format=json. Please select only one output format."
 msgstr ""
 
 #: ../raster/r.regression.multi/main.c:59
