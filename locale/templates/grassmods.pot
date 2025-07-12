@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-07-05 18:31+0000\n"
+"POT-Creation-Date: 2025-07-12 15:46+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -11872,8 +11872,8 @@ msgstr ""
 msgid "Predict with a Support Vector Machine"
 msgstr ""
 
-#. GTC: SVM training input
 #. GTC: SVM prediction input
+#. GTC: SVM training input
 #: ../imagery/i.svm.predict/main.c:60 ../imagery/i.svm.train/main.c:62
 msgid "Maps with feature values (attributes)"
 msgstr ""
@@ -40541,12 +40541,12 @@ msgstr ""
 msgid "Maximum value in output: %e."
 msgstr ""
 
-#: ../vector/v.label.sa/font.c:54
+#: ../vector/v.label.sa/font.c:53
 #, c-format
 msgid "%s: Unable to read font definition file; use the default"
 msgstr ""
 
-#: ../vector/v.label.sa/font.c:60
+#: ../vector/v.label.sa/font.c:59
 #, c-format
 msgid "%s: No font definition file"
 msgstr ""
@@ -40591,7 +40591,7 @@ msgstr ""
 msgid "Unable to select attributes"
 msgstr ""
 
-#: ../vector/v.label.sa/labels.c:244
+#: ../vector/v.label.sa/labels.c:245
 #, c-format
 msgid "Cannot load glyph for '%c'"
 msgstr ""
