@@ -6,9 +6,10 @@ name: macOS
 on:
   push:
     branches:
-      - main
-      - releasebranch_*
+      - priotestci
   pull_request:
+    branches:
+      - priotestci
 env:
   CACHE_NUMBER: 0
 concurrency:
