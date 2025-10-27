@@ -10,13 +10,15 @@ on:
   pull_request:
     branches:
       - priotestci
+    
 env:
   CACHE_NUMBER: 0
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}
   cancel-in-progress: true
 
-permissions: {}
+permissions:
+  actions: read # Allows Github to fetch artifacts
 
 jobs:
   macos_build:
@@ -92,6 +94,17 @@ jobs:
         if: ${{ !cancelled() }}
         shell: micromamba-shell {0}
         run: source ./.github/workflows/print_versions.sh
+
+      - name: Get PR ID
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "PR_ID=${{ github.event.number }}" >> "$GITHUB_ENV"
+            echo "This run is for PR #${{ github.event.number }}"
+          else
+            echo "PR_ID=none" >> "$GITHUB_ENV"
+            echo "This run is not a PR (branch: ${GITHUB_REF_NAME})"
+          fi
 
       - name: Run pytest with multiple workers in parallel
         shell: micromamba-shell {0}
