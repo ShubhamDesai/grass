@@ -10,7 +10,6 @@ on:
   pull_request:
     branches:
       - priotestci
-    
 env:
   CACHE_NUMBER: 0
 concurrency:
