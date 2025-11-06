@@ -104,6 +104,41 @@ jobs:
             echo "PR_ID=none" >> "$GITHUB_ENV"
             echo "This run is not a PR (branch: ${GITHUB_REF_NAME})"
           fi
+      
+      - name: Create smoketest file (pr_<id>/macos)
+        shell: bash
+        run: |
+          PR_DIR="pr_${PR_ID}"
+          mkdir -p "artifacts/${PR_DIR}/macos"
+          {
+            echo "workflow: macOS"
+            echo "event: ${{ github.event_name }}"
+            echo "branch: ${GITHUB_REF_NAME}"
+            echo "pr_id: ${PR_ID}"
+            echo "timestamp: $(date -Iseconds)"
+          } > "artifacts/${PR_DIR}/macos/smoketest.txt"
+
+      - name: Upload smoketest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr_${{ env.PR_ID }}_macos_smoketest
+          path: artifacts/pr_${{ env.PR_ID }}/macos/smoketest.txt
+          retention-days: 3
+
+      - name: Download smoketest artifact (to verify upload)
+        uses: actions/download-artifact@v4
+        with:
+          name: pr_${{ env.PR_ID }}_macos_smoketest
+          path: retrieved
+
+      - name: Show downloaded artifact contents
+        shell: bash
+        run: |
+          echo "==== Retrieved Artifact Files ===="
+          find retrieved -type f
+          echo "----------------------------------"
+          echo "Content of smoketest.txt:"
+          cat retrieved/smoketest.txt || echo "No smoketest file found."
 
       - name: Run pytest with multiple workers in parallel
         shell: micromamba-shell {0}
