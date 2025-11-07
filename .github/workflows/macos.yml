@@ -104,6 +104,31 @@ jobs:
             echo "PR_ID=none" >> "$GITHUB_ENV"
             echo "This run is not a PR (branch: ${GITHUB_REF_NAME})"
           fi
+
+      - name: Install jq in micromamba env
+        shell: micromamba-shell {0}
+        run: micromamba install -y jq
+
+      
+      - name: Check If Previous Artifacts Exist
+        id: check_artifacts
+        shell: micromamba-shell {0}
+        run: |
+          echo "Checking if previous artifacts exist for PR-${PR_ID}..."
+          ARTIFACTS_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts")
+
+          ARTIFACT_COUNT=$(echo "$ARTIFACTS_RESPONSE" \
+            | jq -r --arg NAME "pr_${PR_ID}_macos_smoketest" \
+              '[.artifacts[] | select(.name==$NAME and .expired==false)] | length')
+
+          echo "Found ${ARTIFACT_COUNT} matching artifact(s)."
+          if [[ "$ARTIFACT_COUNT" -gt 0 ]]; then
+            echo "PREV_ARTIFACT_EXISTS=true" >> "$GITHUB_ENV"
+          else
+            echo "PREV_ARTIFACT_EXISTS=false" >> "$GITHUB_ENV"
+          fi
       
       - name: Create smoketest file (pr_<id>/macos)
         shell: bash
