@@ -181,6 +181,54 @@ jobs:
       #       --junitxml=pytest.xdist.junit.xml \
       #       -k 'not testsuite'
 
+      - name: Check If Previous macOS Parallel Artifacts Exist
+        shell: micromamba-shell {0}
+        run: |
+          echo "Checking previous artifacts for PR-${PR_ID}..."
+
+          ARTIFACTS_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts")
+
+          ARTIFACT_COUNT=$(echo "$ARTIFACTS_RESPONSE" \
+            | jq -r --arg NAME "pr_${PR_ID}_macos_parallel_results" \
+              '[.artifacts[] | select(.name==$NAME and .expired==false)] | length')
+
+          echo "Found ${ARTIFACT_COUNT} matching artifact(s)."
+
+          if [[ "$ARTIFACT_COUNT" -gt 0 ]]; then
+            echo "PREV_ARTIFACT_EXISTS=true" >> "$GITHUB_ENV"
+          else
+            echo "PREV_ARTIFACT_EXISTS=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Retrieve Previous macOS Parallel Artifacts
+        if: env.PREV_ARTIFACT_EXISTS == 'true'
+        shell: micromamba-shell {0}
+        run: |
+          echo "Retrieving previous macOS parallel results for PR-${PR_ID}..."
+
+          ARTIFACT_URL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts" \
+            | jq -r --arg NAME "pr_${PR_ID}_macos_parallel_results" \
+              '[.artifacts[] | select(.name==$NAME)] | sort_by(.created_at) | reverse | .[0].archive_download_url')
+
+          if [[ -z "$ARTIFACT_URL" || "$ARTIFACT_URL" == "null" ]]; then
+            echo "Artifact URL not found."
+            exit 0
+          fi
+
+          mkdir -p artifacts/pr_${PR_ID}/macos_prev
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -o artifacts/pr_${PR_ID}/macos_prev/results.zip "$ARTIFACT_URL"
+
+          unzip -o artifacts/pr_${PR_ID}/macos_prev/results.zip -d artifacts/pr_${PR_ID}/macos_prev
+
+          echo "===== Previous macOS parallel test results ====="
+          cat artifacts/pr_${PR_ID}/macos_prev/test_results.json || echo "No previous JSON found"
+          echo "================================================"
+
       - name: Collect all test cases (parallel macOS)
         shell: micromamba-shell {0}
         run: |
