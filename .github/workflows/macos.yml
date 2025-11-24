@@ -229,6 +229,38 @@ jobs:
           cat artifacts/pr_${PR_ID}/macos_prev/test_results.json || echo "No previous JSON found"
           echo "================================================"
 
+      - name: Run previously failed tests first (macOS)
+        shell: micromamba-shell {0}
+        run: |
+          PYTHONPATH="$(grass --config python_path):${PYTHONPATH}"
+          LD_LIBRARY_PATH="$(grass --config path)/lib:${LD_LIBRARY_PATH}"
+          export PYTHONPATH
+          export LD_LIBRARY_PATH
+
+          PR_DIR="pr_${PR_ID}"
+          PREV_DIR="artifacts/${PR_DIR}/macos_prev"
+          CURR_DIR="artifacts/${PR_DIR}/macos"
+
+          mkdir -p "${CURR_DIR}"
+
+          FAILED_TESTS_FILE="${PREV_DIR}/failed_tests.txt"
+          TEMP_RESULTS="${CURR_DIR}/temp_test_results.json"
+
+          if [[ -s "${FAILED_TESTS_FILE}" ]]; then
+            echo "Re-running previously failed tests first:"
+            cat "${FAILED_TESTS_FILE}"
+
+            pytest \
+              @.github/workflows/pytest_args_ci.txt \
+              @.github/workflows/pytest_args_parallel.txt \
+              --json-report --json-report-file="${TEMP_RESULTS}" \
+              $(cat "${FAILED_TESTS_FILE}") || true
+          else
+            echo "No previously failed tests found."
+            # create empty JSON file so next steps never break
+            echo '{"tests": []}' > "${TEMP_RESULTS}"
+          fi
+
       - name: Collect all test cases (parallel macOS)
         shell: micromamba-shell {0}
         run: |
