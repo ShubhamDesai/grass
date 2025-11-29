@@ -261,6 +261,33 @@ jobs:
             echo '{"tests": []}' > "${TEMP_RESULTS}"
           fi
 
+      - name: Check if any tests failed again (macOS)
+        shell: micromamba-shell {0}
+        run: |
+          PR_DIR="pr_${PR_ID}"
+          CURR_DIR="artifacts/${PR_DIR}/macos"
+          TEMP_RESULTS="${CURR_DIR}/temp_test_results.json"
+          FAILED_AGAIN_FILE="${CURR_DIR}/failed_again.txt"
+
+          if [[ -f "${TEMP_RESULTS}" ]]; then
+            echo "Checking if any previously failed tests are still failing..."
+            jq -r '.tests | map(select(.outcome == "failed")) | .[].nodeid' \
+              "${TEMP_RESULTS}" > "${FAILED_AGAIN_FILE}" || true
+          else
+            echo "No temp JSON results found, assuming no tests failed again."
+            : > "${FAILED_AGAIN_FILE}"
+          fi
+
+          if [[ -s "${FAILED_AGAIN_FILE}" ]]; then
+            echo "Some tests failed again. Stopping execution."
+            echo "Tests failing again:"
+            cat "${FAILED_AGAIN_FILE}"
+            exit 1
+          else
+            echo "No tests failed again. Continuing with remaining tests..."
+          fi
+
+
       - name: Collect all test cases (parallel macOS)
         shell: micromamba-shell {0}
         run: |
