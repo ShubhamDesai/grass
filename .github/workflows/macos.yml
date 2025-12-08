@@ -306,6 +306,43 @@ jobs:
             -k 'not testsuite' \
             | grep "::" > "artifacts/${PR_DIR}/macos/all_tests.txt" || true
 
+
+      - name: Debug all_tests count (macOS)
+        shell: micromamba-shell {0}
+        run: |
+          PR_DIR="pr_${PR_ID}"
+          CURR_DIR="artifacts/${PR_DIR}/macos"
+          ALL_TESTS_FILE="${CURR_DIR}/all_tests.txt"
+
+          echo "===== DEBUG: all_tests.txt ====="
+          if [[ -f "${ALL_TESTS_FILE}" ]]; then
+            wc -l "${ALL_TESTS_FILE}" || true
+            echo "Sample lines:"
+            head -n 5 "${ALL_TESTS_FILE}" || true
+          else
+            echo "all_tests.txt not found"
+          fi
+          echo "================================"
+        
+      - name: Debug remaining_tests count (macOS)
+        shell: micromamba-shell {0}
+        run: |
+          PR_DIR="pr_${PR_ID}"
+          CURR_DIR="artifacts/${PR_DIR}/macos"
+          REMAINING_TESTS_FILE="${CURR_DIR}/remaining_tests.txt"
+
+          echo "===== DEBUG: remaining_tests.txt ====="
+          if [[ -f "${REMAINING_TESTS_FILE}" ]]; then
+            wc -l "${REMAINING_TESTS_FILE}" || true
+            echo "Sample lines:"
+            head -n 5 "${REMAINING_TESTS_FILE}" || true
+          else
+            echo "remaining_tests.txt not found"
+          fi
+          echo "======================================"
+
+
+
       - name: Identify remaining tests to run (macOS)
         shell: micromamba-shell {0}
         run: |
