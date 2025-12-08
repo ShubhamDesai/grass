@@ -297,14 +297,39 @@ jobs:
           export LD_LIBRARY_PATH
 
           PR_DIR="pr_${PR_ID}"
-          mkdir -p "artifacts/${PR_DIR}/macos"
+          CURR_DIR="artifacts/${PR_DIR}/macos"
+          mkdir -p "${CURR_DIR}"
 
+          COLLECT_JSON="${CURR_DIR}/collect.json"
+          ALL_TESTS_FILE="${CURR_DIR}/all_tests.txt"
+
+          echo "Collecting test cases into JSON..."
           pytest \
             @.github/workflows/pytest_args_ci.txt \
             @.github/workflows/pytest_args_parallel.txt \
-            --collect-only --quiet \
-            -k 'not testsuite' \
-            | grep "::" > "artifacts/${PR_DIR}/macos/all_tests.txt" || true
+            --collect-only \
+            --json-report --json-report-file="${COLLECT_JSON}" \
+            -k 'not testsuite' || true
+
+          echo "Extracting nodeids from collect.json..."
+          if [[ -f "${COLLECT_JSON}" ]]; then
+            # pytest-json-report usually stores collected tests here
+            jq -r '.collectors[].nodes[].nodeid // empty' "${COLLECT_JSON}" > "${ALL_TESTS_FILE}" || true
+          else
+            echo "WARNING: ${COLLECT_JSON} not found, writing empty all_tests.txt"
+            : > "${ALL_TESTS_FILE}"
+          fi
+
+          echo "===== DEBUG: all_tests.txt ====="
+          if [[ -f "${ALL_TESTS_FILE}" ]]; then
+            wc -l "${ALL_TESTS_FILE}" || true
+            echo "Sample lines:"
+            head -n 5 "${ALL_TESTS_FILE}" || true
+          else
+            echo "all_tests.txt not found"
+          fi
+          echo "================================"
+
 
 
       - name: Debug all_tests count (macOS)
