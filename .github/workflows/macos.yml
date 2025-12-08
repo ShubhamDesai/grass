@@ -386,7 +386,6 @@ jobs:
             echo '{"tests": []}' > "${OUT_JSON}"
           fi
 
-
       - name: Extract failed and passed tests (parallel macOS)
         shell: micromamba-shell {0}
         run: |
