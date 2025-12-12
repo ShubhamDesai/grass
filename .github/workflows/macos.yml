@@ -300,18 +300,28 @@ jobs:
           CURR_DIR="artifacts/${PR_DIR}/macos"
           mkdir -p "${CURR_DIR}"
 
+          RAW_COLLECT="${CURR_DIR}/raw_collect.txt"
           ALL_TESTS_FILE="${CURR_DIR}/all_tests.txt"
 
           echo "Collecting test nodeids..."
+          # 1) Capture ALL output (stdout + stderr)
           pytest \
             @.github/workflows/pytest_args_ci.txt \
             @.github/workflows/pytest_args_parallel.txt \
-            --collect-only --quiet \
-            -k 'not testsuite' | grep "::" > "${ALL_TESTS_FILE}" || true
+            --collect-only -q \
+            -k 'not testsuite' > "${RAW_COLLECT}" 2>&1 || true
+
+          echo "===== DEBUG: raw_collect (first 40 lines) ====="
+          head -n 40 "${RAW_COLLECT}" || true
+          echo "==============================================="
+
+          # 2) Extract lines that look like nodeids
+          grep "::" "${RAW_COLLECT}" > "${ALL_TESTS_FILE}" || true
 
           echo "===== DEBUG: all_tests.txt ====="
           wc -l "${ALL_TESTS_FILE}" || true
           head -n 10 "${ALL_TESTS_FILE}" || true
+          echo "================================"
 
 
       - name: Debug all_tests count (macOS)
