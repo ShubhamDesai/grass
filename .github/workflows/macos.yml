@@ -402,8 +402,7 @@ jobs:
         run: |
           PYTHONPATH="$(grass --config python_path):${PYTHONPATH}"
           LD_LIBRARY_PATH="$(grass --config path)/lib:${LD_LIBRARY_PATH}"
-          export PYTHONPATH
-          export LD_LIBRARY_PATH
+          export PYTHONPATH LD_LIBRARY_PATH
 
           PR_DIR="pr_${PR_ID}"
           CURR_DIR="artifacts/${PR_DIR}/macos"
@@ -416,16 +415,16 @@ jobs:
             echo "Running remaining test cases (macOS)..."
             tr -d '\r' < "${REMAINING_TESTS_FILE}" > /tmp/remaining_tests_clean.txt
 
-            pytest \
+            xargs -a /tmp/remaining_tests_clean.txt pytest \
               @.github/workflows/pytest_args_ci.txt \
               @.github/workflows/pytest_args_parallel.txt \
               --junitxml=pytest.xdist.junit.xml \
-              --json-report --json-report-file="${OUT_JSON}" \
-              $(cat /tmp/remaining_tests_clean.txt) || true
+              --json-report --json-report-file="${OUT_JSON}" || true
           else
             echo "No remaining test cases to run. Writing empty JSON."
             echo '{"tests": []}' > "${OUT_JSON}"
           fi
+
 
 
       - name: Extract failed and passed tests (parallel macOS)
