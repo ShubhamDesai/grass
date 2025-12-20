@@ -400,51 +400,39 @@ jobs:
       - name: Run pytest with multiple workers in parallel (JSON report)
         shell: micromamba-shell {0}
         run: |
-          bash -lc '
-            PYTHONPATH="$(grass --config python_path):${PYTHONPATH}"
-            LD_LIBRARY_PATH="$(grass --config path)/lib:${LD_LIBRARY_PATH}"
-            export PYTHONPATH LD_LIBRARY_PATH
+          PYTHONPATH="$(grass --config python_path):${PYTHONPATH}"
+          LD_LIBRARY_PATH="$(grass --config path)/lib:${LD_LIBRARY_PATH}"
+          export PYTHONPATH LD_LIBRARY_PATH
 
-            PR_DIR="pr_${PR_ID}"
-            CURR_DIR="artifacts/${PR_DIR}/macos"
-            mkdir -p "${CURR_DIR}"
+          PR_DIR="pr_${PR_ID}"
+          CURR_DIR="artifacts/${PR_DIR}/macos"
+          mkdir -p "${CURR_DIR}"
 
-            OUT_JSON="${CURR_DIR}/test_results.json"
-            REMAINING_TESTS_FILE="${CURR_DIR}/remaining_tests.txt"
+          OUT_JSON="${CURR_DIR}/test_results.json"
+          REMAINING_TESTS_FILE="${CURR_DIR}/remaining_tests.txt"
 
-            if [[ ! -s "${REMAINING_TESTS_FILE}" ]]; then
-              echo "No remaining test cases to run. Writing empty JSON."
-              echo "{\"tests\": []}" > "${OUT_JSON}"
-              exit 0
-            fi
-
+          if [[ -s "${REMAINING_TESTS_FILE}" ]]; then
             echo "Running remaining pytest test cases (excluding testsuite)..."
 
             # Clean CRLF + remove blank lines
-            tr -d "\r" < "${REMAINING_TESTS_FILE}" | sed "/^[[:space:]]*$/d" > /tmp/remaining_tests_clean.txt
+            tr -d '\r' < "${REMAINING_TESTS_FILE}" | sed '/^[[:space:]]*$/d' > /tmp/remaining_tests_clean.txt
 
-            # Load nodeids into array
-            mapfile -t TESTS < /tmp/remaining_tests_clean.txt
-
-            echo "Remaining tests count: ${#TESTS[@]}"
+            echo "Remaining tests count: $(wc -l < /tmp/remaining_tests_clean.txt)"
             echo "First 5:"
-            printf "%s\n" "${TESTS[@]:0:5}"
+            head -n 5 /tmp/remaining_tests_clean.txt || true
 
-            # IMPORTANT: if empty, do NOT run full suite by accident
-            if [[ ${#TESTS[@]} -eq 0 ]]; then
-              echo "ERROR: remaining_tests_clean.txt produced 0 nodeids. Refusing to run full suite."
-              exit 2
-            fi
-
+            # IMPORTANT: pass nodeids + keep filter to avoid testsuite
             pytest \
               @.github/workflows/pytest_args_ci.txt \
               @.github/workflows/pytest_args_parallel.txt \
-              -k "not testsuite" \
+              -k 'not testsuite' \
               --junitxml=pytest.xdist.junit.xml \
               --json-report --json-report-file="${OUT_JSON}" \
-              "${TESTS[@]}" || true
-          '
-
+              $(cat /tmp/remaining_tests_clean.txt) || true
+          else
+            echo "No remaining test cases to run. Writing empty JSON."
+            echo '{"tests": []}' > "${OUT_JSON}"
+          fi
 
 
 
