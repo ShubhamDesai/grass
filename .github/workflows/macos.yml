@@ -402,7 +402,8 @@ jobs:
         run: |
           PYTHONPATH="$(grass --config python_path):${PYTHONPATH}"
           LD_LIBRARY_PATH="$(grass --config path)/lib:${LD_LIBRARY_PATH}"
-          export PYTHONPATH LD_LIBRARY_PATH
+          export PYTHONPATH
+          export LD_LIBRARY_PATH
 
           PR_DIR="pr_${PR_ID}"
           CURR_DIR="artifacts/${PR_DIR}/macos"
@@ -412,28 +413,22 @@ jobs:
           REMAINING_TESTS_FILE="${CURR_DIR}/remaining_tests.txt"
 
           if [[ -s "${REMAINING_TESTS_FILE}" ]]; then
-            echo "Running remaining test cases (macOS)..."
+            echo "Running remaining pytest test cases (excluding testsuite)..."
 
-            # Read nodeids safely (strip CR, drop empty lines) into a bash array
-            mapfile -t TESTS < <(tr -d '\r' < "${REMAINING_TESTS_FILE}" | sed '/^[[:space:]]*$/d')
-
-            echo "Count: ${#TESTS[@]}"
-            echo "First 5:"
-            printf '%s\n' "${TESTS[@]:0:5}"
+            # macOS safety: remove CRLF just in case
+            tr -d '\r' < "${REMAINING_TESTS_FILE}" > /tmp/remaining_tests_clean.txt
 
             pytest \
               @.github/workflows/pytest_args_ci.txt \
               @.github/workflows/pytest_args_parallel.txt \
+              -k 'not testsuite' \
               --junitxml=pytest.xdist.junit.xml \
               --json-report --json-report-file="${OUT_JSON}" \
-              "${TESTS[@]}" || true
+              $(cat /tmp/remaining_tests_clean.txt) || true
           else
             echo "No remaining test cases to run. Writing empty JSON."
             echo '{"tests": []}' > "${OUT_JSON}"
           fi
-
-
-
 
 
       - name: Extract failed and passed tests (parallel macOS)
