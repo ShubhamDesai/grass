@@ -422,16 +422,15 @@ jobs:
             head -n 5 /tmp/remaining_tests_clean.txt || true
 
             # IMPORTANT: pass nodeids + keep filter to avoid testsuite
+
             pytest \
+              @/tmp/remaining_tests_clean.txt \
               @.github/workflows/pytest_args_ci.txt \
               @.github/workflows/pytest_args_parallel.txt \
               -k 'not testsuite' \
               --junitxml=pytest.xdist.junit.xml \
-              --json-report --json-report-file="${OUT_JSON}" \
-              $(cat /tmp/remaining_tests_clean.txt) || true
-          else
-            echo "No remaining test cases to run. Writing empty JSON."
-            echo '{"tests": []}' > "${OUT_JSON}"
+              --json-report --json-report-file="${OUT_JSON}" || true
+              
           fi
 
 
