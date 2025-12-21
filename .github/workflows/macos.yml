@@ -414,32 +414,30 @@ jobs:
           if [[ -s "${REMAINING_TESTS_FILE}" ]]; then
             echo "Running remaining pytest test cases (excluding testsuite)..."
 
-            # Clean CRLF + remove blank lines + drop testsuite
+            # Keep ONLY valid pytest nodeids (protect against log/junk lines)
             tr -d '\r' < "${REMAINING_TESTS_FILE}" \
               | sed '/^[[:space:]]*$/d' \
-              | grep -v 'testsuite' > /tmp/remaining_tests_clean.txt || true
+              | grep -v 'testsuite' \
+              | grep -E '\.py::' \
+              > /tmp/remaining_tests_clean.txt
 
             echo "Remaining tests count: $(wc -l < /tmp/remaining_tests_clean.txt)"
             echo "First 5:"
             head -n 5 /tmp/remaining_tests_clean.txt || true
 
-            echo "Check whether first file exists:"
-            first_path="$(head -n 1 /tmp/remaining_tests_clean.txt | cut -d':' -f1)"
-            echo "first_path=$first_path"
-            ls -la "$first_path" || true
+            echo "Suspicious lines (should be empty):"
+            grep -n -v '::' /tmp/remaining_tests_clean.txt || true
 
-            echo "=== Sanity: do these nodeids collect WITHOUT any CI args? ==="
-            pytest --collect-only -q @/tmp/remaining_tests_clean.txt || true
-
-            # Remove filters that can cause 0 collection when explicit nodeids are used
-            # (markers/keywords + ignore rules)
+            # Remove selection + ignore filters when using explicit nodeids
             grep -vE '(^-m(\s|$)|^-k(\s|$)|^--ignore=|^--ignore-glob=|^--norecursedirs=)' \
               .github/workflows/pytest_args_ci.txt > /tmp/pytest_args_ci_clean.txt
 
             grep -vE '(^-m(\s|$)|^-k(\s|$)|^--ignore=|^--ignore-glob=|^--norecursedirs=)' \
               .github/workflows/pytest_args_parallel.txt > /tmp/pytest_args_parallel_clean.txt
 
-            echo "=== Running with cleaned args + explicit nodeids ==="
+            # Sanity collect
+            pytest --collect-only -q @/tmp/remaining_tests_clean.txt || true
+
             pytest \
               @/tmp/pytest_args_ci_clean.txt \
               @/tmp/pytest_args_parallel_clean.txt \
@@ -447,11 +445,11 @@ jobs:
               --json-report \
               --json-report-file="${OUT_JSON}" \
               @/tmp/remaining_tests_clean.txt || true
-
           else
             echo "No remaining test cases to run. Writing empty JSON."
             echo '{"tests": []}' > "${OUT_JSON}"
           fi
+
 
 
 
