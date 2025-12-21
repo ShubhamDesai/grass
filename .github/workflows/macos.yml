@@ -422,21 +422,8 @@ jobs:
             echo "First 5:"
             head -n 5 /tmp/remaining_tests_clean.txt || true
 
-            # DEBUG: Check if test files exist
-            echo "Current directory: $(pwd)"
-            echo "Checking if first test file exists:"
-            FIRST_TEST=$(head -n 1 /tmp/remaining_tests_clean.txt | cut -d':' -f1)
-            echo "First test file: ${FIRST_TEST}"
-            if [[ -f "${FIRST_TEST}" ]]; then
-              echo "✓ File exists!"
-            else
-              echo "✗ File NOT found!"
-              echo "Looking for it..."
-              find . -name "$(basename ${FIRST_TEST})" -type f | head -5
-            fi
-
-            # Run pytest with explicit node IDs
-            pytest \
+            # Run pytest - pass test nodeids directly via command line (not @file)
+            cat /tmp/remaining_tests_clean.txt | xargs pytest \
               --verbose \
               --color=yes \
               --durations=0 \
@@ -446,8 +433,7 @@ jobs:
               -o junit_family=xunit2 \
               --json-report \
               --json-report-file="${OUT_JSON}" \
-              -ra \
-              @/tmp/remaining_tests_clean.txt || true
+              -ra || true
                 
           else
             echo "No remaining test cases to run. Writing empty JSON."
