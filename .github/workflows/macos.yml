@@ -250,16 +250,26 @@ jobs:
             echo "Re-running previously failed tests first:"
             cat "${FAILED_TESTS_FILE}"
 
+            # Clean CRLF + blank lines + keep only real nodeids (prevents junk lines like "786/3259 ...")
+            tr -d '\r' < "${FAILED_TESTS_FILE}" \
+              | sed '/^[[:space:]]*$/d' \
+              | grep -E '\.py::' > /tmp/failed_tests_clean.txt || true
+
+            # Strip marker/keyword filters for explicit-nodeid run (avoid 0 items)
+            grep -vE '(^-m(\s|$)|^-k(\s|$))' .github/workflows/pytest_args_ci.txt > /tmp/pytest_args_ci_noselect.txt
+            grep -vE '(^-m(\s|$)|^-k(\s|$))' .github/workflows/pytest_args_parallel.txt > /tmp/pytest_args_parallel_noselect.txt
+
             pytest \
-              @.github/workflows/pytest_args_ci.txt \
-              @.github/workflows/pytest_args_parallel.txt \
+              @/tmp/pytest_args_ci_noselect.txt \
+              @/tmp/pytest_args_parallel_noselect.txt \
               --json-report --json-report-file="${TEMP_RESULTS}" \
-              $(cat "${FAILED_TESTS_FILE}") || true
+              @/tmp/failed_tests_clean.txt || true
           else
             echo "No previously failed tests found."
             # create empty JSON file so next steps never break
             echo '{"tests": []}' > "${TEMP_RESULTS}"
           fi
+
 
       - name: Check if any tests failed again (macOS)
         shell: micromamba-shell {0}
