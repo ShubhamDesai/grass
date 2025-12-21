@@ -400,8 +400,6 @@ jobs:
       - name: Run pytest with multiple workers in parallel (JSON report)
         shell: micromamba-shell {0}
         run: |
-          set -euo pipefail
-
           PYTHONPATH="$(grass --config python_path):${PYTHONPATH}"
           LD_LIBRARY_PATH="$(grass --config path)/lib:${LD_LIBRARY_PATH}"
           export PYTHONPATH LD_LIBRARY_PATH
@@ -412,39 +410,36 @@ jobs:
 
           OUT_JSON="${CURR_DIR}/test_results.json"
           REMAINING_TESTS_FILE="${CURR_DIR}/remaining_tests.txt"
-          CLEAN_FILE="/tmp/remaining_tests_clean.txt"
 
           if [[ -s "${REMAINING_TESTS_FILE}" ]]; then
             echo "Running remaining pytest test cases (excluding testsuite)..."
 
-            # Clean CRLF + remove blank lines + filter out testsuite
+            # Clean CRLF + remove blank lines
             tr -d '\r' < "${REMAINING_TESTS_FILE}" \
-              | sed '/^[[:space:]]*$/d' \
-              | grep -v 'testsuite' > "${CLEAN_FILE}" || true
+              | sed '/^[[:space:]]*$/d' > /tmp/remaining_tests_clean.txt
 
-            echo "Remaining tests count: $(wc -l < "${CLEAN_FILE}")"
+            echo "Remaining tests count: $(wc -l < /tmp/remaining_tests_clean.txt)"
             echo "First 5:"
-            head -n 5 "${CLEAN_FILE}" || true
+            head -n 5 /tmp/remaining_tests_clean.txt || true
 
-            # Safety: if empty, DO NOT run full suite
-            if [[ "$(wc -l < "${CLEAN_FILE}")" -eq 0 ]]; then
-              echo "ERROR: ${CLEAN_FILE} has 0 nodeids. Refusing to run full suite."
-              exit 2
-            fi
-
-            # IMPORTANT: options first, nodeids last
+            # Run pytest - test files first, then options
             pytest \
-              @.github/workflows/pytest_args_ci.txt \
-              @.github/workflows/pytest_args_parallel.txt \
+              --verbose \
+              --color=yes \
+              --durations=0 \
+              --durations-min=0.5 \
+              --numprocesses=auto \
               --junitxml=pytest.xdist.junit.xml \
-              --json-report --json-report-file="${OUT_JSON}" \
-              @"${CLEAN_FILE}" || true
-
+              -o junit_family=xunit2 \
+              --json-report \
+              --json-report-file="${OUT_JSON}" \
+              -ra \
+              @/tmp/remaining_tests_clean.txt || true
+                
           else
             echo "No remaining test cases to run. Writing empty JSON."
             echo '{"tests": []}' > "${OUT_JSON}"
           fi
-
 
 
 
