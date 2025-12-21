@@ -422,21 +422,21 @@ jobs:
             echo "First 5:"
             head -n 5 /tmp/remaining_tests_clean.txt || true
             
-            # Extract unique test file paths (remove ::test_name parts)
+            # Extract unique test file paths
             awk -F'::' '{print $1}' /tmp/remaining_tests_clean.txt | sort -u > /tmp/test_files.txt
             
             echo "Test files count: $(wc -l < /tmp/test_files.txt)"
             echo "Test files:"
             cat /tmp/test_files.txt
             
-            # Run pytest with parallel workers on test files
-            # xdist will automatically discover and distribute all tests in these files
+            # Run pytest with parallel workers - OVERRIDE marker filter with empty -m
             pytest \
               --verbose \
               --color=yes \
               --durations=0 \
               --durations-min=0.5 \
               -n auto \
+              -m "" \
               --junitxml=pytest.xdist.junit.xml \
               -o junit_family=xunit2 \
               --json-report \
