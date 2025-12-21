@@ -403,43 +403,51 @@ jobs:
           PYTHONPATH="$(grass --config python_path):${PYTHONPATH}"
           LD_LIBRARY_PATH="$(grass --config path)/lib:${LD_LIBRARY_PATH}"
           export PYTHONPATH LD_LIBRARY_PATH
-
+          
           PR_DIR="pr_${PR_ID}"
           CURR_DIR="artifacts/${PR_DIR}/macos"
           mkdir -p "${CURR_DIR}"
-
+          
           OUT_JSON="${CURR_DIR}/test_results.json"
           REMAINING_TESTS_FILE="${CURR_DIR}/remaining_tests.txt"
-
+          
           if [[ -s "${REMAINING_TESTS_FILE}" ]]; then
             echo "Running remaining pytest test cases (excluding testsuite)..."
-
+            
             # Clean CRLF + remove blank lines
             tr -d '\r' < "${REMAINING_TESTS_FILE}" \
               | sed '/^[[:space:]]*$/d' > /tmp/remaining_tests_clean.txt
-
+            
             echo "Remaining tests count: $(wc -l < /tmp/remaining_tests_clean.txt)"
             echo "First 5:"
             head -n 5 /tmp/remaining_tests_clean.txt || true
-
-            # Run pytest - pass test nodeids directly via command line (not @file)
-            cat /tmp/remaining_tests_clean.txt | xargs pytest \
+            
+            # Extract unique test file paths (remove ::test_name parts)
+            awk -F'::' '{print $1}' /tmp/remaining_tests_clean.txt | sort -u > /tmp/test_files.txt
+            
+            echo "Test files count: $(wc -l < /tmp/test_files.txt)"
+            echo "Test files:"
+            cat /tmp/test_files.txt
+            
+            # Run pytest with parallel workers on test files
+            # xdist will automatically discover and distribute all tests in these files
+            pytest \
               --verbose \
               --color=yes \
               --durations=0 \
               --durations-min=0.5 \
-              --numprocesses=auto \
+              -n auto \
               --junitxml=pytest.xdist.junit.xml \
               -o junit_family=xunit2 \
               --json-report \
               --json-report-file="${OUT_JSON}" \
-              -ra || true
-                
+              -ra \
+              $(cat /tmp/test_files.txt) || true
+                  
           else
             echo "No remaining test cases to run. Writing empty JSON."
             echo '{"tests": []}' > "${OUT_JSON}"
           fi
-
 
 
       - name: Extract failed and passed tests (parallel macOS)
