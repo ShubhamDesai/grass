@@ -423,6 +423,11 @@ jobs:
             echo "First 5:"
             head -n 5 /tmp/remaining_tests_clean.txt || true
 
+            echo "Check whether first file exists:"
+            first_path="$(head -n 1 /tmp/remaining_tests_clean.txt | cut -d':' -f1)"
+            echo "first_path=$first_path"
+            ls -la "$first_path" || true
+
             echo "=== Sanity: do these nodeids collect WITHOUT any CI args? ==="
             pytest --collect-only -q @/tmp/remaining_tests_clean.txt || true
 
