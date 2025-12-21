@@ -422,7 +422,20 @@ jobs:
             echo "First 5:"
             head -n 5 /tmp/remaining_tests_clean.txt || true
 
-            # Run pytest - test files first, then options
+            # DEBUG: Check if test files exist
+            echo "Current directory: $(pwd)"
+            echo "Checking if first test file exists:"
+            FIRST_TEST=$(head -n 1 /tmp/remaining_tests_clean.txt | cut -d':' -f1)
+            echo "First test file: ${FIRST_TEST}"
+            if [[ -f "${FIRST_TEST}" ]]; then
+              echo "✓ File exists!"
+            else
+              echo "✗ File NOT found!"
+              echo "Looking for it..."
+              find . -name "$(basename ${FIRST_TEST})" -type f | head -5
+            fi
+
+            # Run pytest with explicit node IDs
             pytest \
               --verbose \
               --color=yes \
