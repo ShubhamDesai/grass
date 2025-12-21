@@ -403,41 +403,44 @@ jobs:
           PYTHONPATH="$(grass --config python_path):${PYTHONPATH}"
           LD_LIBRARY_PATH="$(grass --config path)/lib:${LD_LIBRARY_PATH}"
           export PYTHONPATH LD_LIBRARY_PATH
-          
+
           PR_DIR="pr_${PR_ID}"
           CURR_DIR="artifacts/${PR_DIR}/macos"
           mkdir -p "${CURR_DIR}"
-          
+
           OUT_JSON="${CURR_DIR}/test_results.json"
           REMAINING_TESTS_FILE="${CURR_DIR}/remaining_tests.txt"
-          
+
           if [[ -s "${REMAINING_TESTS_FILE}" ]]; then
             echo "Running remaining pytest test cases (excluding testsuite)..."
-            
-            # Clean CRLF + remove blank lines
+
+            # Clean CRLF + remove blank lines + drop testsuite just in case
             tr -d '\r' < "${REMAINING_TESTS_FILE}" \
-              | sed '/^[[:space:]]*$/d' > /tmp/remaining_tests_clean.txt
-            
+              | sed '/^[[:space:]]*$/d' \
+              | grep -v 'testsuite' > /tmp/remaining_tests_clean.txt || true
+
             echo "Remaining tests count: $(wc -l < /tmp/remaining_tests_clean.txt)"
             echo "First 5:"
             head -n 5 /tmp/remaining_tests_clean.txt || true
-            
-            # Create a custom args file WITHOUT the -m filter
-            grep -v '^-m' .github/workflows/pytest_args_parallel.txt > /tmp/pytest_args_parallel_nomarker.txt
-            
-            # Run pytest with explicit node IDs
+
+            # Remove selection filters when running explicit node IDs
+            # (otherwise pytest can deselect everything and you get 0 items)
+            grep -vE '^-m(\s|$)|^-k(\s|$)' .github/workflows/pytest_args_ci.txt > /tmp/pytest_args_ci_noselect.txt
+            grep -vE '^-m(\s|$)|^-k(\s|$)' .github/workflows/pytest_args_parallel.txt > /tmp/pytest_args_parallel_noselect.txt
+
             pytest \
-              @.github/workflows/pytest_args_ci.txt \
-              @/tmp/pytest_args_parallel_nomarker.txt \
+              @/tmp/pytest_args_ci_noselect.txt \
+              @/tmp/pytest_args_parallel_noselect.txt \
               --junitxml=pytest.xdist.junit.xml \
               --json-report \
               --json-report-file="${OUT_JSON}" \
               @/tmp/remaining_tests_clean.txt || true
-                  
+
           else
             echo "No remaining test cases to run. Writing empty JSON."
             echo '{"tests": []}' > "${OUT_JSON}"
           fi
+
 
 
       - name: Extract failed and passed tests (parallel macOS)
