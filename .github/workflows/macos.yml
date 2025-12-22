@@ -250,25 +250,28 @@ jobs:
             echo "Re-running previously failed tests first:"
             cat "${FAILED_TESTS_FILE}"
 
-            # Clean CRLF + blank lines + keep only real nodeids (prevents junk lines like "786/3259 ...")
+            # Clean CRLF + blank lines + keep only real nodeids
             tr -d '\r' < "${FAILED_TESTS_FILE}" \
               | sed '/^[[:space:]]*$/d' \
               | grep -E '\.py::' > /tmp/failed_tests_clean.txt || true
 
-            # Strip marker/keyword filters for explicit-nodeid run (avoid 0 items)
-            grep -vE '(^-m(\s|$)|^-k(\s|$))' .github/workflows/pytest_args_ci.txt > /tmp/pytest_args_ci_noselect.txt
-            grep -vE '(^-m(\s|$)|^-k(\s|$))' .github/workflows/pytest_args_parallel.txt > /tmp/pytest_args_parallel_noselect.txt
+            echo "Cleaned failed tests count: $(wc -l < /tmp/failed_tests_clean.txt)"
+            echo "First 5 cleaned:"
+            head -n 5 /tmp/failed_tests_clean.txt || true
+
+            # Use ONLY CI args, and remove selection + xdist options for this rerun
+            grep -vE '(^-m(\s|$)|^-k(\s|$)|^-n(\s|$)|^--dist(\s|$))' \
+              .github/workflows/pytest_args_ci.txt > /tmp/pytest_args_ci_rerun.txt
 
             pytest \
-              @/tmp/pytest_args_ci_noselect.txt \
-              @/tmp/pytest_args_parallel_noselect.txt \
+              @/tmp/pytest_args_ci_rerun.txt \
               --json-report --json-report-file="${TEMP_RESULTS}" \
               @/tmp/failed_tests_clean.txt || true
           else
             echo "No previously failed tests found."
-            # create empty JSON file so next steps never break
             echo '{"tests": []}' > "${TEMP_RESULTS}"
           fi
+
 
 
       - name: Check if any tests failed again (macOS)
