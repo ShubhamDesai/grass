@@ -8,8 +8,7 @@ DEFAULT_KEYS = [
     "build_platform",
     "build_off_t_size",
 ]
-def test_priotestci_force_fail():
-    assert False, "Intentional failure to test PrioTestCI artifacts"
+
 
 def curly_brackets_paired(text):
     """Check whether all curly brackets in the given text are properly paired."""
