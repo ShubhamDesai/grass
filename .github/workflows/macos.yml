@@ -504,69 +504,78 @@ jobs:
           retention-days: 7
 
 
-     # - name: Run pytest with a single worker (for tests marked with needs_solo_run)
-      #  shell: micromamba-shell {0}
-      #  run: |
-      #   PYTHONPATH="$(grass --config python_path):${PYTHONPATH}"
-      #   LD_LIBRARY_PATH="$(grass --config path)/lib:${LD_LIBRARY_PATH}"
-      #   export PYTHONPATH
-      #   export LD_LIBRARY_PATH
-      #   pytest \
-      #     @.github/workflows/pytest_args_ci.txt \
-      #     @.github/workflows/pytest_args_not_parallel.txt \
-      #     --junitxml=pytest.needs_solo_run.junit.xml \
-      #     -k 'not testsuite'
-
-      - name: Check If Previous macOS Solo Artifacts Exist
+      - name: Run pytest with a single worker (for tests marked with needs_solo_run)
         shell: micromamba-shell {0}
         run: |
-          echo "Checking previous SOLO artifacts for PR-${PR_ID}..."
+          PYTHONPATH="$(grass --config python_path):${PYTHONPATH}"
+          LD_LIBRARY_PATH="$(grass --config path)/lib:${LD_LIBRARY_PATH}"
+          export PYTHONPATH
+          export LD_LIBRARY_PATH
+          pytest \
+           @.github/workflows/pytest_args_ci.txt \
+           @.github/workflows/pytest_args_not_parallel.txt \
+           --junitxml=pytest.needs_solo_run.junit.xml \
+           -k 'not testsuite'
+
+      
+            
+      #- name: Run pytest with a single worker (for gunittest-based tests)
+       # shell: micromamba-shell {0}
+        #run: |
+         # PYTHONPATH="$(grass --config python_path):${PYTHONPATH}"
+          #LD_LIBRARY_PATH="$(grass --config path)/lib:${LD_LIBRARY_PATH}"
+          #export PYTHONPATH
+          #export LD_LIBRARY_PATH
+          #pytest \
+           # @.github/workflows/pytest_args_gunittest.txt \
+            #--junitxml=pytest.gunittest.junit.xml
+
+      - name: Check If Previous macOS gunittest Artifacts Exist
+        shell: micromamba-shell {0}
+        run: |
+          echo "Checking previous gunittest artifacts for PR-${PR_ID}..."
 
           ARTIFACTS_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/artifacts")
 
-          SOLO_COUNT=$(echo "$ARTIFACTS_RESPONSE" \
-            | jq -r --arg NAME "pr_${PR_ID}_macos_solo_results" \
+          COUNT=$(echo "$ARTIFACTS_RESPONSE" \
+            | jq -r --arg NAME "pr_${PR_ID}_macos_gunittest_results" \
               '[.artifacts[] | select(.name==$NAME and .expired==false)] | length')
 
-          echo "Found ${SOLO_COUNT} matching SOLO artifact(s)."
+          echo "Found ${COUNT} matching gunittest artifact(s)."
 
-          if [[ "$SOLO_COUNT" -gt 0 ]]; then
-            echo "PREV_SOLO_EXISTS=true" >> "$GITHUB_ENV"
+          if [[ "$COUNT" -gt 0 ]]; then
+            echo "PREV_GUNITTEST_EXISTS=true" >> "$GITHUB_ENV"
           else
-            echo "PREV_SOLO_EXISTS=false" >> "$GITHUB_ENV"
+            echo "PREV_GUNITTEST_EXISTS=false" >> "$GITHUB_ENV"
           fi
 
-      - name: Retrieve Previous macOS Solo Artifacts
-        if: env.PREV_SOLO_EXISTS == 'true'
+      - name: Retrieve Previous macOS gunittest Artifacts
+        if: env.PREV_GUNITTEST_EXISTS == 'true'
         shell: micromamba-shell {0}
         run: |
-          echo "Retrieving previous macOS SOLO results for PR-${PR_ID}..."
-
           ARTIFACT_URL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/artifacts" \
-            | jq -r --arg NAME "pr_${PR_ID}_macos_solo_results" \
+            | jq -r --arg NAME "pr_${PR_ID}_macos_gunittest_results" \
               '[.artifacts[] | select(.name==$NAME)] | sort_by(.created_at) | reverse | .[0].archive_download_url')
 
           if [[ -z "$ARTIFACT_URL" || "$ARTIFACT_URL" == "null" ]]; then
-            echo "SOLO artifact URL not found."
+            echo "gunittest artifact URL not found."
             exit 0
           fi
 
-          mkdir -p artifacts/pr_${PR_ID}/macos_solo_prev
+          mkdir -p artifacts/pr_${PR_ID}/macos_gunittest_prev
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              -o artifacts/pr_${PR_ID}/macos_solo_prev/results.zip "$ARTIFACT_URL"
+              -o artifacts/pr_${PR_ID}/macos_gunittest_prev/results.zip "$ARTIFACT_URL"
 
-          unzip -o artifacts/pr_${PR_ID}/macos_solo_prev/results.zip -d artifacts/pr_${PR_ID}/macos_solo_prev
+          unzip -o artifacts/pr_${PR_ID}/macos_gunittest_prev/results.zip -d artifacts/pr_${PR_ID}/macos_gunittest_prev
 
-          echo "===== Previous macOS SOLO test results ====="
-          ls -la artifacts/pr_${PR_ID}/macos_solo_prev || true
-          cat artifacts/pr_${PR_ID}/macos_solo_prev/failed_tests.txt || echo "No previous solo failed_tests.txt"
-          echo "==========================================="
+          echo "Previous gunittest failed tests:"
+          cat artifacts/pr_${PR_ID}/macos_gunittest_prev/failed_tests.txt || true
 
-      - name: Run previously failed SOLO tests first (macOS needs_solo_run)
+      - name: Run previously failed gunittest tests first (macOS)
         shell: micromamba-shell {0}
         run: |
           PYTHONPATH="$(grass --config python_path):${PYTHONPATH}"
@@ -574,48 +583,42 @@ jobs:
           export PYTHONPATH LD_LIBRARY_PATH
 
           PR_DIR="pr_${PR_ID}"
-          PREV_DIR="artifacts/${PR_DIR}/macos_solo_prev"
-          CURR_DIR="artifacts/${PR_DIR}/macos_solo"
+          PREV_DIR="artifacts/${PR_DIR}/macos_gunittest_prev"
+          CURR_DIR="artifacts/${PR_DIR}/macos_gunittest"
           mkdir -p "${CURR_DIR}"
 
           FAILED_TESTS_FILE="${PREV_DIR}/failed_tests.txt"
           TEMP_RESULTS="${CURR_DIR}/temp_test_results.json"
 
           if [[ -s "${FAILED_TESTS_FILE}" ]]; then
-            echo "Re-running previously failed SOLO tests first:"
-            cat "${FAILED_TESTS_FILE}"
-
             tr -d '\r' < "${FAILED_TESTS_FILE}" \
               | sed '/^[[:space:]]*$/d' \
-              | grep -E '\.py::' > /tmp/solo_failed_clean.txt || true
+              | grep -E '\.py::' > /tmp/gunittest_failed_clean.txt || true
 
-            echo "Cleaned solo-failed count: $(wc -l < /tmp/solo_failed_clean.txt)"
-            head -n 5 /tmp/solo_failed_clean.txt || true
+            if [[ ! -s /tmp/gunittest_failed_clean.txt ]]; then
+              echo "No valid gunittest nodeids after cleaning."
+              echo '{"tests": []}' > "${TEMP_RESULTS}"
+              exit 0
+            fi
 
-            # When using explicit nodeids, remove selection/filters that can conflict.
-            # Keep the core CI args, and also keep "not parallel" args if they contain timeouts etc,
-            # but remove -m/-k/ignore type args (same as you did for parallel).
-            grep -vE '(^-m(\s|$)|^-k(\s|$)|^--ignore=|^--ignore-glob=|^--norecursedirs=|^-n(\s|$)|^--dist(\s|$))' \
-              .github/workflows/pytest_args_ci.txt > /tmp/pytest_args_ci_solo_rerun.txt
-
-            grep -vE '(^-m(\s|$)|^-k(\s|$)|^--ignore=|^--ignore-glob=|^--norecursedirs=|^-n(\s|$)|^--dist(\s|$))' \
-              .github/workflows/pytest_args_not_parallel.txt > /tmp/pytest_args_not_parallel_clean.txt
+            # For explicit nodeids, remove ignore filters to avoid accidental deselection
+            grep -vE '(^--ignore=|^--ignore-glob=|^--norecursedirs=|^-k(\s|$)|^-m(\s|$))' \
+              .github/workflows/pytest_args_ci.txt > /tmp/pytest_args_ci_gunittest_rerun.txt
 
             pytest \
-              @/tmp/pytest_args_ci_solo_rerun.txt \
-              @/tmp/pytest_args_not_parallel_clean.txt \
+              @/tmp/pytest_args_ci_gunittest_rerun.txt \
               --json-report --json-report-file="${TEMP_RESULTS}" \
-              @/tmp/solo_failed_clean.txt || true
+              @/tmp/gunittest_failed_clean.txt || true
           else
-            echo "No previously failed SOLO tests found."
+            echo "No previous gunittest failed tests."
             echo '{"tests": []}' > "${TEMP_RESULTS}"
           fi
 
-      - name: Check if any SOLO tests failed again (macOS needs_solo_run)
+      - name: Stop if gunittest failures repeat (macOS)
         shell: micromamba-shell {0}
         run: |
           PR_DIR="pr_${PR_ID}"
-          CURR_DIR="artifacts/${PR_DIR}/macos_solo"
+          CURR_DIR="artifacts/${PR_DIR}/macos_gunittest"
           TEMP_RESULTS="${CURR_DIR}/temp_test_results.json"
           FAILED_AGAIN_FILE="${CURR_DIR}/failed_again.txt"
 
@@ -627,14 +630,13 @@ jobs:
           fi
 
           if [[ -s "${FAILED_AGAIN_FILE}" ]]; then
-            echo "Some SOLO tests failed again. Stopping execution."
+            echo "gunittest tests still failing:"
             cat "${FAILED_AGAIN_FILE}"
             exit 1
-          else
-            echo "No SOLO tests failed again. Continuing..."
           fi
 
-      - name: Collect SOLO test cases (nodeids) (macOS needs_solo_run)
+      
+      - name: Collect gunittest bucket nodeids (macOS)
         shell: micromamba-shell {0}
         run: |
           PYTHONPATH="$(grass --config python_path):${PYTHONPATH}"
@@ -642,52 +644,50 @@ jobs:
           export PYTHONPATH LD_LIBRARY_PATH
 
           PR_DIR="pr_${PR_ID}"
-          CURR_DIR="artifacts/${PR_DIR}/macos_solo"
+          CURR_DIR="artifacts/${PR_DIR}/macos_gunittest"
           mkdir -p "${CURR_DIR}"
 
           ALL_TESTS_FILE="${CURR_DIR}/all_tests.txt"
 
-          # Collect with the same bucket definition (not-parallel args), but keep output clean:
-          # Remove verbose/collection-noise options if they exist; we only want nodeids.
-          grep -vE '(^--maxfail=|^--durations=|^--durations-min=|^--capture=|^-r(\s|$))' \
-            .github/workflows/pytest_args_not_parallel.txt > /tmp/pytest_args_not_parallel_collect.txt
-
           pytest \
-            @.github/workflows/pytest_args_ci.txt \
-            @/tmp/pytest_args_not_parallel_collect.txt \
-            --collect-only -q \
-            -k 'not testsuite' 2>/dev/null \
+            @.github/workflows/pytest_args_gunittest.txt \
+            --collect-only -q 2>/dev/null \
             > "${ALL_TESTS_FILE}" || true
 
-          echo "SOLO all_tests count: $(wc -l < "${ALL_TESTS_FILE}")"
+          # Keep only nodeids (defensive)
+          tr -d '\r' < "${ALL_TESTS_FILE}" | grep -E '\.py::' > /tmp/gunittest_all_clean.txt || true
+          mv /tmp/gunittest_all_clean.txt "${ALL_TESTS_FILE}"
+
+          echo "gunittest all_tests count: $(wc -l < "${ALL_TESTS_FILE}")"
           head -n 10 "${ALL_TESTS_FILE}" || true
 
-      - name: Identify remaining SOLO tests to run (macOS needs_solo_run)
+      - name: Identify remaining gunittest tests to run (macOS)
         shell: micromamba-shell {0}
         run: |
           PR_DIR="pr_${PR_ID}"
-          PREV_DIR="artifacts/${PR_DIR}/macos_solo_prev"
-          CURR_DIR="artifacts/${PR_DIR}/macos_solo"
+          PREV_DIR="artifacts/${PR_DIR}/macos_gunittest_prev"
+          CURR_DIR="artifacts/${PR_DIR}/macos_gunittest"
 
           ALL_TESTS_FILE="${CURR_DIR}/all_tests.txt"
           FAILED_PREV="${PREV_DIR}/failed_tests.txt"
           REMAINING_TESTS_FILE="${CURR_DIR}/remaining_tests.txt"
 
           if [[ -s "${FAILED_PREV}" ]]; then
-            tr -d '\r' < "${FAILED_PREV}" | sed '/^[[:space:]]*$/d' | grep -E '\.py::' > /tmp/solo_failed_prev_clean.txt || true
-            grep -v -F -f /tmp/solo_failed_prev_clean.txt "${ALL_TESTS_FILE}" > "${REMAINING_TESTS_FILE}" || true
+            tr -d '\r' < "${FAILED_PREV}" | sed '/^[[:space:]]*$/d' | grep -E '\.py::' > /tmp/gunittest_failed_prev_clean.txt || true
+            grep -v -F -f /tmp/gunittest_failed_prev_clean.txt "${ALL_TESTS_FILE}" > "${REMAINING_TESTS_FILE}" || true
+
             if [[ ! -s "${REMAINING_TESTS_FILE}" ]]; then
-              echo "Remaining SOLO became empty after filtering; falling back to ALL solo tests."
+              echo "Remaining gunittest empty; fallback to ALL."
               cp "${ALL_TESTS_FILE}" "${REMAINING_TESTS_FILE}"
             fi
           else
             cp "${ALL_TESTS_FILE}" "${REMAINING_TESTS_FILE}"
           fi
 
-          echo "SOLO remaining count: $(wc -l < "${REMAINING_TESTS_FILE}")"
+          echo "gunittest remaining count: $(wc -l < "${REMAINING_TESTS_FILE}")"
           head -n 10 "${REMAINING_TESTS_FILE}" || true
 
-      - name: Run pytest SOLO remaining tests (JSON report) (macOS needs_solo_run)
+      - name: Run gunittest remaining tests (JSON report) (macOS)
         shell: micromamba-shell {0}
         run: |
           PYTHONPATH="$(grass --config python_path):${PYTHONPATH}"
@@ -695,44 +695,33 @@ jobs:
           export PYTHONPATH LD_LIBRARY_PATH
 
           PR_DIR="pr_${PR_ID}"
-          CURR_DIR="artifacts/${PR_DIR}/macos_solo"
+          CURR_DIR="artifacts/${PR_DIR}/macos_gunittest"
           mkdir -p "${CURR_DIR}"
 
           OUT_JSON="${CURR_DIR}/test_results.json"
-          REMAINING_TESTS_FILE="${CURR_DIR}/remaining_tests.txt"
+          REMAINING="${CURR_DIR}/remaining_tests.txt"
 
-          if [[ -s "${REMAINING_TESTS_FILE}" ]]; then
-            tr -d '\r' < "${REMAINING_TESTS_FILE}" \
-              | sed '/^[[:space:]]*$/d' \
-              | grep -v 'testsuite' \
-              | grep -E '\.py::' > /tmp/solo_remaining_clean.txt
-
-            echo "SOLO remaining tests count: $(wc -l < /tmp/solo_remaining_clean.txt)"
-            head -n 5 /tmp/solo_remaining_clean.txt || true
-
-            # Remove conflicting filters when feeding explicit nodeids
-            grep -vE '(^-m(\s|$)|^-k(\s|$)|^--ignore=|^--ignore-glob=|^--norecursedirs=|^-n(\s|$)|^--dist(\s|$))' \
-              .github/workflows/pytest_args_ci.txt > /tmp/pytest_args_ci_solo_clean.txt
-
-            grep -vE '(^-m(\s|$)|^-k(\s|$)|^--ignore=|^--ignore-glob=|^--norecursedirs=)' \
-              .github/workflows/pytest_args_not_parallel.txt > /tmp/pytest_args_not_parallel_clean2.txt
-
-            pytest \
-              @/tmp/pytest_args_ci_solo_clean.txt \
-              @/tmp/pytest_args_not_parallel_clean2.txt \
-              --junitxml=pytest.needs_solo_run.junit.xml \
-              --json-report --json-report-file="${OUT_JSON}" \
-              @/tmp/solo_remaining_clean.txt || true
-          else
-            echo "No SOLO remaining test cases to run. Writing empty JSON."
+          if [[ ! -s "${REMAINING}" ]]; then
+            echo "No remaining gunittest tests. Writing empty JSON."
             echo '{"tests": []}' > "${OUT_JSON}"
+            exit 0
           fi
 
-      - name: Extract failed and passed SOLO tests (macOS needs_solo_run)
+          # When feeding explicit nodeids, remove ignore filters from args file
+          grep -vE '(^--ignore=|^--ignore-glob=|^--norecursedirs=|^-k(\s|$)|^-m(\s|$))' \
+            .github/workflows/pytest_args_ci.txt > /tmp/pytest_args_ci_gunittest_clean.txt
+
+          pytest \
+            @/tmp/pytest_args_ci_gunittest_clean.txt \
+            --junitxml=pytest.gunittest.junit.xml \
+            --json-report --json-report-file="${OUT_JSON}" \
+            @"${REMAINING}" || true
+
+      - name: Extract failed and passed tests (gunittest macOS)
         shell: micromamba-shell {0}
         run: |
           PR_DIR="pr_${PR_ID}"
-          BASE_DIR="artifacts/${PR_DIR}/macos_solo"
+          BASE_DIR="artifacts/${PR_DIR}/macos_gunittest"
           RESULTS="${BASE_DIR}/test_results.json"
           FAILED="${BASE_DIR}/failed_tests.txt"
           PASSED="${BASE_DIR}/passed_tests.txt"
@@ -745,32 +734,18 @@ jobs:
             : > "${PASSED}"
           fi
 
-          echo "SOLO failed count: $(wc -l < "${FAILED}")"
-          echo "SOLO passed count: $(wc -l < "${PASSED}")"
-
-      - name: Upload macOS SOLO test artifacts
+      - name: Upload macOS gunittest test artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: pr_${{ env.PR_ID }}_macos_solo_results
+          name: pr_${{ env.PR_ID }}_macos_gunittest_results
           path: |
-            artifacts/pr_${{ env.PR_ID }}/macos_solo/all_tests.txt
-            artifacts/pr_${{ env.PR_ID }}/macos_solo/remaining_tests.txt
-            artifacts/pr_${{ env.PR_ID }}/macos_solo/failed_tests.txt
-            artifacts/pr_${{ env.PR_ID }}/macos_solo/passed_tests.txt
-            artifacts/pr_${{ env.PR_ID }}/macos_solo/test_results.json
+            artifacts/pr_${{ env.PR_ID }}/macos_gunittest/all_tests.txt
+            artifacts/pr_${{ env.PR_ID }}/macos_gunittest/remaining_tests.txt
+            artifacts/pr_${{ env.PR_ID }}/macos_gunittest/failed_tests.txt
+            artifacts/pr_${{ env.PR_ID }}/macos_gunittest/passed_tests.txt
+            artifacts/pr_${{ env.PR_ID }}/macos_gunittest/test_results.json
           retention-days: 7
 
-            
-      - name: Run pytest with a single worker (for gunittest-based tests)
-        shell: micromamba-shell {0}
-        run: |
-          PYTHONPATH="$(grass --config python_path):${PYTHONPATH}"
-          LD_LIBRARY_PATH="$(grass --config path)/lib:${LD_LIBRARY_PATH}"
-          export PYTHONPATH
-          export LD_LIBRARY_PATH
-          pytest \
-            @.github/workflows/pytest_args_gunittest.txt \
-            --junitxml=pytest.gunittest.junit.xml
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
