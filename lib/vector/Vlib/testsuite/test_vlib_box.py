@@ -89,6 +89,10 @@ class TestPointInBoundingBox(TestCase):
             msg="Point should be outside the bbox",
         )
 
+    def test_intentional_failure(self):
+        """Intentional failure to validate CI stop-on-failure logic."""
+        self.assertTrue(False, msg="Intentional failure (should stop pipeline)")
+
 
 if __name__ == "__main__":
     test()
