@@ -779,12 +779,214 @@ jobs:
           path: sample-data/nc_spm_full_v2alpha2.tar.gz
           key: nc_spm_full_v2alpha2.tar.gz
 
-      - name: Run gunittest tests
+      #- name: Run gunittest tests
+       # shell: micromamba-shell {0}
+        #run: .github/workflows/test_thorough.sh --config .github/workflows/macos_gunittest.cfg
+        #env:
+         # SAMPLE_DATA_URL: "file://${{ github.workspace }}/sample-data/\
+          #  nc_spm_full_v2alpha2.tar.gz"
+
+      - name: Check If Previous macOS gunittest thorough Artifacts Exist
         shell: micromamba-shell {0}
-        run: .github/workflows/test_thorough.sh --config .github/workflows/macos_gunittest.cfg
+        run: |
+          echo "Checking previous gunittest thorough artifacts for PR-${PR_ID}..."
+
+          ARTIFACTS_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts")
+
+          COUNT=$(echo "$ARTIFACTS_RESPONSE" \
+            | jq -r --arg NAME "pr_${PR_ID}_macos_gunittest_thorough_results" \
+              '[.artifacts[] | select(.name==$NAME and .expired==false)] | length')
+
+          echo "Found ${COUNT} matching gunittest thorough artifact(s)."
+
+          if [[ "$COUNT" -gt 0 ]]; then
+            echo "PREV_GUNITTEST_THOROUGH_EXISTS=true" >> "$GITHUB_ENV"
+          else
+            echo "PREV_GUNITTEST_THOROUGH_EXISTS=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Retrieve Previous macOS gunittest thorough Artifacts
+        if: env.PREV_GUNITTEST_THOROUGH_EXISTS == 'true'
+        shell: micromamba-shell {0}
+        run: |
+          ARTIFACT_URL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts" \
+            | jq -r --arg NAME "pr_${PR_ID}_macos_gunittest_thorough_results" \
+              '[.artifacts[] | select(.name==$NAME)] | sort_by(.created_at) | reverse | .[0].archive_download_url')
+
+          if [[ -z "$ARTIFACT_URL" || "$ARTIFACT_URL" == "null" ]]; then
+            echo "gunittest thorough artifact URL not found."
+            exit 0
+          fi
+
+          mkdir -p artifacts/pr_${PR_ID}/macos_gunittest_thorough_prev
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -o artifacts/pr_${PR_ID}/macos_gunittest_thorough_prev/results.zip "$ARTIFACT_URL"
+
+          unzip -o artifacts/pr_${PR_ID}/macos_gunittest_thorough_prev/results.zip -d artifacts/pr_${PR_ID}/macos_gunittest_thorough_prev
+
+          echo "Previous gunittest thorough failed files:"
+          cat artifacts/pr_${PR_ID}/macos_gunittest_thorough_prev/failed_tests.txt || true
+
+      - name: Run previously failed gunittest thorough tests first (STOP if repeat)
+        if: env.PREV_GUNITTEST_THOROUGH_EXISTS == 'true'
+        shell: micromamba-shell {0}
+        run: |
+          set -e
+
+          PR_DIR="pr_${PR_ID}"
+          PREV_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough_prev"
+          CURR_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough"
+          mkdir -p "${CURR_DIR}"
+
+          FAILED_FILE="${PREV_DIR}/failed_tests.txt"
+          RERUN_LIST="/tmp/gunittest_thorough_failed_clean.txt"
+
+          if [[ ! -s "${FAILED_FILE}" ]]; then
+            echo "No previous gunittest thorough failed list."
+            exit 0
+          fi
+
+          # Clean (CRLF, blanks). Keep repo-relative paths only.
+          tr -d '\r' < "${FAILED_FILE}" | sed '/^[[:space:]]*$/d' > "${RERUN_LIST}" || true
+
+          if [[ ! -s "${RERUN_LIST}" ]]; then
+            echo "Failed list became empty after cleaning."
+            exit 0
+          fi
+
+          echo "Re-running previously failed gunittest thorough files first:"
+          head -n 50 "${RERUN_LIST}" || true
+
+          # Put output in a separate folder
+          OUTDIR="${CURR_DIR}/rerun_prev"
+          mkdir -p "${OUTDIR}"
+
+          # IMPORTANT: do NOT swallow failure; we want STOP-ON-REPEAT
+          .github/workflows/test_thorough.sh \
+            --config .github/workflows/macos_gunittest.cfg \
+            --output "${OUTDIR}" \
+            $(cat "${RERUN_LIST}")
         env:
-          SAMPLE_DATA_URL: "file://${{ github.workspace }}/sample-data/\
-            nc_spm_full_v2alpha2.tar.gz"
+          SAMPLE_DATA_URL: "file://${{ github.workspace }}/sample-data/nc_spm_full_v2alpha2.tar.gz"
+
+      - name: Collect all gunittest thorough test files (repo scan)
+        shell: micromamba-shell {0}
+        run: |
+          PR_DIR="pr_${PR_ID}"
+          CURR_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough"
+          mkdir -p "${CURR_DIR}"
+
+          ALL_FILE="${CURR_DIR}/all_tests.txt"
+
+          # Repo-relative testsuite files (py + sh)
+          find . -type f \
+            \( -path "*/testsuite/*.py" -o -path "*/testsuite/*.sh" \) \
+            | sed 's|^\./||' \
+            | sort > "${ALL_FILE}"
+
+          echo "All gunittest thorough files: $(wc -l < "${ALL_FILE}")"
+          head -n 20 "${ALL_FILE}" || true
+
+      - name: Identify remaining gunittest thorough tests to run
+        shell: micromamba-shell {0}
+        run: |
+          PR_DIR="pr_${PR_ID}"
+          CURR_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough"
+          PREV_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough_prev"
+
+          ALL="${CURR_DIR}/all_tests.txt"
+          REM="${CURR_DIR}/remaining_tests.txt"
+          FAILED_PREV="${PREV_DIR}/failed_tests.txt"
+
+          if [[ -s "${FAILED_PREV}" ]]; then
+            tr -d '\r' < "${FAILED_PREV}" | sed '/^[[:space:]]*$/d' > /tmp/failed_prev_clean.txt || true
+            grep -v -F -f /tmp/failed_prev_clean.txt "${ALL}" > "${REM}" || true
+            if [[ ! -s "${REM}" ]]; then
+              echo "Remaining empty; fallback to ALL."
+              cp "${ALL}" "${REM}"
+            fi
+          else
+            cp "${ALL}" "${REM}"
+          fi
+
+          echo "Remaining gunittest thorough files: $(wc -l < "${REM}")"
+          head -n 20 "${REM}" || true
+
+      - name: Run gunittest thorough remaining tests
+        shell: micromamba-shell {0}
+        run: |
+          PR_DIR="pr_${PR_ID}"
+          CURR_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough"
+          OUTDIR="${CURR_DIR}/full_run"
+          mkdir -p "${OUTDIR}"
+
+          REM="${CURR_DIR}/remaining_tests.txt"
+          if [[ ! -s "${REM}" ]]; then
+            echo "No remaining tests; skipping."
+            exit 0
+          fi
+
+          .github/workflows/test_thorough.sh \
+            --config .github/workflows/macos_gunittest.cfg \
+            --output "${OUTDIR}" \
+            $(cat "${REM}")
+        env:
+          SAMPLE_DATA_URL: "file://${{ github.workspace }}/sample-data/nc_spm_full_v2alpha2.tar.gz"
+
+      - name: Extract failed/passed gunittest thorough files
+        if: always()
+        shell: micromamba-shell {0}
+        run: |
+          PR_DIR="pr_${PR_ID}"
+          CURR_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough"
+          OUTDIR="${CURR_DIR}/full_run"
+
+          FAILED="${CURR_DIR}/failed_tests.txt"
+          PASSED="${CURR_DIR}/passed_tests.txt"
+          : > "${FAILED}"
+          : > "${PASSED}"
+
+          # Parse keyvalue results
+          while IFS= read -r kv; do
+            status="$(grep -E '^status=' "$kv" | head -n 1 | cut -d= -f2- || true)"
+            name="$(grep -E '^name=' "$kv" | head -n 1 | cut -d= -f2- || true)"
+            # 'name' is often module name; we want file path when available:
+            # invoker keyval also has 'file=' in some setups; try that first.
+            file="$(grep -E '^file=' "$kv" | head -n 1 | cut -d= -f2- || true)"
+            target="${file:-$name}"
+
+            [[ -z "${target}" || -z "${status}" ]] && continue
+
+            if [[ "$status" == "failed" ]]; then
+              echo "${target}" >> "${FAILED}"
+            elif [[ "$status" == "passed" ]]; then
+              echo "${target}" >> "${PASSED}"
+            fi
+          done < <(find "${OUTDIR}" -type f -name "test_keyvalue_result.txt" 2>/dev/null || true)
+
+          sort -u -o "${FAILED}" "${FAILED}" || true
+          sort -u -o "${PASSED}" "${PASSED}" || true
+
+          echo "Failed thorough count: $(wc -l < "${FAILED}" || echo 0)"
+          echo "Passed thorough count: $(wc -l < "${PASSED}" || echo 0)"
+          head -n 30 "${FAILED}" || true
+
+      - name: Upload macOS gunittest thorough artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr_${{ env.PR_ID }}_macos_gunittest_thorough_results
+          path: |
+            artifacts/pr_${{ env.PR_ID }}/macos_gunittest_thorough/all_tests.txt
+            artifacts/pr_${{ env.PR_ID }}/macos_gunittest_thorough/remaining_tests.txt
+            artifacts/pr_${{ env.PR_ID }}/macos_gunittest_thorough/failed_tests.txt
+            artifacts/pr_${{ env.PR_ID }}/macos_gunittest_thorough/passed_tests.txt
+            artifacts/pr_${{ env.PR_ID }}/macos_gunittest_thorough/full_run
+          retention-days: 7
 
       - name: Make HTML test report available
         if: ${{ !cancelled() }}
