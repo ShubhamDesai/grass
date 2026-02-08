@@ -831,48 +831,41 @@ jobs:
           echo "Previous gunittest thorough failed files:"
           cat artifacts/pr_${PR_ID}/macos_gunittest_thorough_prev/failed_tests.txt || true
 
+
       - name: Run previously failed gunittest thorough tests first (STOP if repeat)
         if: env.PREV_GUNITTEST_THOROUGH_EXISTS == 'true'
         shell: micromamba-shell {0}
         run: |
           set -e
-
           PR_DIR="pr_${PR_ID}"
           PREV_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough_prev"
           CURR_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough"
           mkdir -p "${CURR_DIR}"
 
-          FAILED_FILE="${PREV_DIR}/failed_tests.txt"
-          RERUN_LIST="/tmp/gunittest_thorough_failed_clean.txt"
+          ALL="${CURR_DIR}/all_tests.txt"
+          FAILED_PREV="${PREV_DIR}/failed_tests.txt"
 
-          if [[ ! -s "${FAILED_FILE}" ]]; then
-            echo "No previous gunittest thorough failed list."
-            exit 0
-          fi
+          # Clean + sort inputs for comm
+          tr -d '\r' < "${FAILED_PREV}" | sed '/^[[:space:]]*$/d' | sort -u > /tmp/failed_prev_clean.txt || true
+          sort -u "${ALL}" > /tmp/all_sorted.txt
 
-          # Clean (CRLF, blanks). Keep repo-relative paths only.
-          tr -d '\r' < "${FAILED_FILE}" | sed '/^[[:space:]]*$/d' > "${RERUN_LIST}" || true
+          # Exclude everything except previously failed: (ALL − FAILED_PREV)
+          comm -23 /tmp/all_sorted.txt /tmp/failed_prev_clean.txt > /tmp/exclude_only_failed.txt || true
 
-          if [[ ! -s "${RERUN_LIST}" ]]; then
-            echo "Failed list became empty after cleaning."
-            exit 0
-          fi
+          # Build temp cfg = base cfg + dynamic excludes
+          TMP_CFG="/tmp/macos_gunittest_only_failed.cfg"
+          cp .github/workflows/macos_gunittest.cfg "${TMP_CFG}"
+          cat /tmp/exclude_only_failed.txt >> "${TMP_CFG}"
 
-          echo "Re-running previously failed gunittest thorough files first:"
-          head -n 50 "${RERUN_LIST}" || true
-
-          # Put output in a separate folder
           OUTDIR="${CURR_DIR}/rerun_prev"
-          mkdir -p "${OUTDIR}"
-
-          # IMPORTANT: do NOT swallow failure; we want STOP-ON-REPEAT
           .github/workflows/test_thorough.sh \
-            --config .github/workflows/macos_gunittest.cfg \
-            --output "${OUTDIR}" \
-            $(cat "${RERUN_LIST}")
+            --config "${TMP_CFG}" \
+            --output "${OUTDIR}"
         env:
           SAMPLE_DATA_URL: "file://${{ github.workspace }}/sample-data/nc_spm_full_v2alpha2.tar.gz"
 
+
+     
       - name: Collect all gunittest thorough test files (repo scan)
         shell: micromamba-shell {0}
         run: |
@@ -919,21 +912,22 @@ jobs:
       - name: Run gunittest thorough remaining tests
         shell: micromamba-shell {0}
         run: |
+          set -e
           PR_DIR="pr_${PR_ID}"
           CURR_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough"
+          PREV_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough_prev"
+
+          FAILED_PREV="${PREV_DIR}/failed_tests.txt"
+          tr -d '\r' < "${FAILED_PREV}" | sed '/^[[:space:]]*$/d' | sort -u > /tmp/failed_prev_clean.txt || true
+
+          TMP_CFG="/tmp/macos_gunittest_remaining.cfg"
+          cp .github/workflows/macos_gunittest.cfg "${TMP_CFG}"
+          cat /tmp/failed_prev_clean.txt >> "${TMP_CFG}"
+
           OUTDIR="${CURR_DIR}/full_run"
-          mkdir -p "${OUTDIR}"
-
-          REM="${CURR_DIR}/remaining_tests.txt"
-          if [[ ! -s "${REM}" ]]; then
-            echo "No remaining tests; skipping."
-            exit 0
-          fi
-
           .github/workflows/test_thorough.sh \
-            --config .github/workflows/macos_gunittest.cfg \
-            --output "${OUTDIR}" \
-            $(cat "${REM}")
+            --config "${TMP_CFG}" \
+            --output "${OUTDIR}"
         env:
           SAMPLE_DATA_URL: "file://${{ github.workspace }}/sample-data/nc_spm_full_v2alpha2.tar.gz"
 
