@@ -836,7 +836,9 @@ jobs:
         if: env.PREV_GUNITTEST_THOROUGH_EXISTS == 'true'
         shell: micromamba-shell {0}
         run: |
-          set -e
+          set -euo pipefail
+          export PATH="/usr/bin:/bin:/usr/sbin:/sbin:${PATH}"
+
           PR_DIR="pr_${PR_ID}"
           PREV_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough_prev"
           CURR_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough"
@@ -845,19 +847,51 @@ jobs:
           ALL="${CURR_DIR}/all_tests.txt"
           FAILED_PREV="${PREV_DIR}/failed_tests.txt"
 
+          # Ensure ALL exists (this step may run before the repo-scan step)
+          if [[ ! -f "${ALL}" ]]; then
+            find . -type f \( -path "*/testsuite/*.py" -o -path "*/testsuite/*.sh" \) \
+              | sed 's|^\./||' \
+              | sort > "${ALL}"
+          fi
+
+          # If no previous failed list, nothing to rerun
+          if [[ ! -s "${FAILED_PREV}" ]]; then
+            echo "No previous failed gunittest thorough list; skipping rerun."
+            exit 0
+          fi
+
           # Clean + sort inputs for comm
-          tr -d '\r' < "${FAILED_PREV}" | sed '/^[[:space:]]*$/d' | sort -u > /tmp/failed_prev_clean.txt || true
+          tr -d '\r' < "${FAILED_PREV}" | sed '/^[[:space:]]*$/d' | sed 's|^\./||' | sort -u > /tmp/failed_prev_clean.txt
           sort -u "${ALL}" > /tmp/all_sorted.txt
 
           # Exclude everything except previously failed: (ALL − FAILED_PREV)
           comm -23 /tmp/all_sorted.txt /tmp/failed_prev_clean.txt > /tmp/exclude_only_failed.txt || true
 
-          # Build temp cfg = base cfg + dynamic excludes
+          # Build temp cfg = base cfg + dynamic excludes INSIDE exclude= block
           TMP_CFG="/tmp/macos_gunittest_only_failed.cfg"
           cp .github/workflows/macos_gunittest.cfg "${TMP_CFG}"
-          cat /tmp/exclude_only_failed.txt >> "${TMP_CFG}"
+
+          awk '
+            BEGIN { inserted=0 }
+            {
+              print $0
+              if (!inserted && $0 ~ /^exclude[[:space:]]*=/) {
+                while ((getline line < "/tmp/exclude_only_failed.txt") > 0) {
+                  gsub(/\r/, "", line)
+                  if (line ~ /^[[:space:]]*$/) continue
+                  print "    " line
+                }
+                close("/tmp/exclude_only_failed.txt")
+                inserted=1
+              }
+            }
+          ' "${TMP_CFG}" > "${TMP_CFG}.new"
+          mv "${TMP_CFG}.new" "${TMP_CFG}"
 
           OUTDIR="${CURR_DIR}/rerun_prev"
+          mkdir -p "${OUTDIR}"
+
+          # STOP-ON-REPEAT behavior: do NOT swallow failure
           .github/workflows/test_thorough.sh \
             --config "${TMP_CFG}" \
             --output "${OUTDIR}"
@@ -912,29 +946,63 @@ jobs:
       - name: Run gunittest thorough remaining tests
         shell: micromamba-shell {0}
         run: |
-          set -e
+          set -euo pipefail
+          export PATH="/usr/bin:/bin:/usr/sbin:/sbin:${PATH}"
+
           PR_DIR="pr_${PR_ID}"
           CURR_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough"
           PREV_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough_prev"
 
+          OUTDIR="${CURR_DIR}/full_run"
+          mkdir -p "${OUTDIR}"
+
           FAILED_PREV="${PREV_DIR}/failed_tests.txt"
-          tr -d '\r' < "${FAILED_PREV}" | sed '/^[[:space:]]*$/d' | sort -u > /tmp/failed_prev_clean.txt || true
+
+          # If no previous failed list, just run base cfg (no dynamic exclude)
+          if [[ ! -s "${FAILED_PREV}" ]]; then
+            echo "No previous failed list; running full gunittest thorough suite."
+            .github/workflows/test_thorough.sh \
+              --config .github/workflows/macos_gunittest.cfg \
+              --output "${OUTDIR}"
+            exit 0
+          fi
+
+          tr -d '\r' < "${FAILED_PREV}" | sed '/^[[:space:]]*$/d' | sed 's|^\./||' | sort -u > /tmp/failed_prev_clean.txt
 
           TMP_CFG="/tmp/macos_gunittest_remaining.cfg"
           cp .github/workflows/macos_gunittest.cfg "${TMP_CFG}"
-          cat /tmp/failed_prev_clean.txt >> "${TMP_CFG}"
 
-          OUTDIR="${CURR_DIR}/full_run"
+          # Add previous-failed files to exclude= so this run executes "remaining"
+          awk '
+            BEGIN { inserted=0 }
+            {
+              print $0
+              if (!inserted && $0 ~ /^exclude[[:space:]]*=/) {
+                while ((getline line < "/tmp/failed_prev_clean.txt") > 0) {
+                  gsub(/\r/, "", line)
+                  if (line ~ /^[[:space:]]*$/) continue
+                  print "    " line
+                }
+                close("/tmp/failed_prev_clean.txt")
+                inserted=1
+              }
+            }
+          ' "${TMP_CFG}" > "${TMP_CFG}.new"
+          mv "${TMP_CFG}.new" "${TMP_CFG}"
+
           .github/workflows/test_thorough.sh \
             --config "${TMP_CFG}" \
             --output "${OUTDIR}"
         env:
           SAMPLE_DATA_URL: "file://${{ github.workspace }}/sample-data/nc_spm_full_v2alpha2.tar.gz"
 
+
       - name: Extract failed/passed gunittest thorough files
         if: always()
         shell: micromamba-shell {0}
         run: |
+          export PATH="/usr/bin:/bin:/usr/sbin:/sbin:${PATH}"
+
           PR_DIR="pr_${PR_ID}"
           CURR_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough"
           OUTDIR="${CURR_DIR}/full_run"
@@ -944,30 +1012,39 @@ jobs:
           : > "${FAILED}"
           : > "${PASSED}"
 
-          # Parse keyvalue results
+          if [[ ! -d "${OUTDIR}" ]]; then
+            echo "No full_run output dir found at: ${OUTDIR}"
+            exit 0
+          fi
+
           while IFS= read -r kv; do
             status="$(grep -E '^status=' "$kv" | head -n 1 | cut -d= -f2- || true)"
-            name="$(grep -E '^name=' "$kv" | head -n 1 | cut -d= -f2- || true)"
-            # 'name' is often module name; we want file path when available:
-            # invoker keyval also has 'file=' in some setups; try that first.
             file="$(grep -E '^file=' "$kv" | head -n 1 | cut -d= -f2- || true)"
-            target="${file:-$name}"
+            test="$(grep -E '^test=' "$kv" | head -n 1 | cut -d= -f2- || true)"
+            name="$(grep -E '^name=' "$kv" | head -n 1 | cut -d= -f2- || true)"
+
+            target="${file:-${test:-$name}}"
+            target="$(echo "${target}" | tr -d '\r' | sed 's|^\./||' | sed 's|^[[:space:]]*||;s|[[:space:]]*$||')"
 
             [[ -z "${target}" || -z "${status}" ]] && continue
 
-            if [[ "$status" == "failed" ]]; then
+            if [[ "${status}" == "failed" ]]; then
               echo "${target}" >> "${FAILED}"
-            elif [[ "$status" == "passed" ]]; then
+            elif [[ "${status}" == "passed" ]]; then
               echo "${target}" >> "${PASSED}"
             fi
           done < <(find "${OUTDIR}" -type f -name "test_keyvalue_result.txt" 2>/dev/null || true)
 
-          sort -u -o "${FAILED}" "${FAILED}" || true
-          sort -u -o "${PASSED}" "${PASSED}" || true
+          tr -d '\r' < "${FAILED}" | sed '/^[[:space:]]*$/d' | sort -u > /tmp/failed_thorough_unique.txt || true
+          tr -d '\r' < "${PASSED}" | sed '/^[[:space:]]*$/d' | sort -u > /tmp/passed_thorough_unique.txt || true
+          mv /tmp/failed_thorough_unique.txt "${FAILED}"
+          mv /tmp/passed_thorough_unique.txt "${PASSED}"
 
           echo "Failed thorough count: $(wc -l < "${FAILED}" || echo 0)"
           echo "Passed thorough count: $(wc -l < "${PASSED}" || echo 0)"
           head -n 30 "${FAILED}" || true
+
+
 
       - name: Upload macOS gunittest thorough artifacts
         if: always()
