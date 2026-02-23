@@ -8,6 +8,10 @@ class TestIAlbedo(TestCase):
 
     output_raster = "albedo_output"
 
+    def test_intentional_failure_for_ci(self):
+        """Intentional failure to validate CI failure."""
+        self.fail("Intentional failure).")
+
     def setUp(self):
         """Initialize temporary region with 10x10 grid"""
         self.use_temp_region()
