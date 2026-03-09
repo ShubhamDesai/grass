@@ -1011,7 +1011,6 @@ jobs:
           : > "${FAILED}"
           : > "${PASSED}"
 
-          # Search BOTH full_run and rerun_prev directories
           for OUTDIR in "${CURR_DIR}/full_run" "${CURR_DIR}/rerun_prev"; do
             if [[ ! -d "${OUTDIR}" ]]; then
               echo "Directory not found: ${OUTDIR}, skipping."
@@ -1022,19 +1021,29 @@ jobs:
 
             while IFS= read -r kv; do
               status="$(grep -E '^status=' "$kv" | head -n 1 | cut -d= -f2- || true)"
+              [[ -z "${status}" ]] && continue
 
               file="$(grep -E '^file=' "$kv" | head -n 1 | cut -d= -f2- || true)"
 
+              # Strip any artifact/output prefix to get repo-relative path
+              if [[ -n "${file}" ]]; then
+                # Remove everything up to and including full_run/ or rerun_prev/
+                file="$(echo "${file}" | sed -E 's|^.*(full_run|rerun_prev)/||')"
+              fi
+
+              # Fallback: derive from keyvalue file location
               if [[ -z "${file}" ]]; then
                 kv_dir="$(dirname "$kv")"
                 test_name="$(basename "$kv_dir")"
                 testsuite_dir="$(dirname "$kv_dir")"
 
+                # Strip OUTDIR prefix from testsuite_dir
+                testsuite_dir_rel="$(echo "${testsuite_dir}" | sed -E "s|^${OUTDIR}/||")"
+
                 for ext in py sh; do
-                  candidate="${testsuite_dir}/${test_name}.${ext}"
-                  repo_candidate="$(echo "${candidate}" | sed "s|^${OUTDIR}/||")"
-                  if [[ -f "${repo_candidate}" ]] || [[ -f "./${repo_candidate}" ]]; then
-                    file="${repo_candidate}"
+                  candidate="${testsuite_dir_rel}/${test_name}.${ext}"
+                  if [[ -f "${candidate}" ]] || [[ -f "./${candidate}" ]]; then
+                    file="${candidate}"
                     break
                   fi
                 done
@@ -1047,8 +1056,14 @@ jobs:
 
               target="$(echo "${file}" | tr -d '\r' | sed 's|^\./||' | sed 's|^[[:space:]]*||;s|[[:space:]]*$||')"
 
-              if [[ -z "${target}" || -z "${status}" ]]; then
+              if [[ -z "${target}" ]]; then
                 echo "WARN: could not resolve path for keyvalue file: $kv (status=${status})"
+                continue
+              fi
+
+              # Skip top-level keyvalue files that aren't actual tests
+              if [[ ! "${target}" == *"/testsuite/"* ]]; then
+                echo "SKIP: not a testsuite file: ${target} (status=${status})"
                 continue
               fi
 
