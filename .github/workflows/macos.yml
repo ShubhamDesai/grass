@@ -1005,73 +1005,67 @@ jobs:
         run: |
           PR_DIR="pr_${PR_ID}"
           CURR_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough"
-          OUTDIR="${CURR_DIR}/full_run"
 
           FAILED="${CURR_DIR}/failed_tests.txt"
           PASSED="${CURR_DIR}/passed_tests.txt"
           : > "${FAILED}"
           : > "${PASSED}"
 
-          if [[ ! -d "${OUTDIR}" ]]; then
-            echo "No full_run output dir found at: ${OUTDIR}"
-            exit 0
-          fi
-
-          while IFS= read -r kv; do
-            status="$(grep -E '^status=' "$kv" | head -n 1 | cut -d= -f2- || true)"
-            
-            # Primary: use file= from the keyvalue result
-            file="$(grep -E '^file=' "$kv" | head -n 1 | cut -d= -f2- || true)"
-            
-            # Fallback: derive path from the keyvalue file's directory structure
-            # e.g. full_run/raster/r.slope.aspect/testsuite/test_something/test_keyvalue_result.txt
-            # We want: raster/r.slope.aspect/testsuite/test_something.py (or .sh)
-            if [[ -z "${file}" ]]; then
-              # Get the parent dir name (test name) and grandparent path (testsuite location)
-              kv_dir="$(dirname "$kv")"
-              test_name="$(basename "$kv_dir")"
-              testsuite_dir="$(dirname "$kv_dir")"
-              
-              # Try to find the actual test file
-              for ext in py sh; do
-                candidate="${testsuite_dir}/${test_name}.${ext}"
-                # Convert from output dir path back to repo-relative path
-                repo_candidate="$(echo "${candidate}" | sed "s|^${OUTDIR}/||")"
-                if [[ -f "${repo_candidate}" ]] || [[ -f "./${repo_candidate}" ]]; then
-                  file="${repo_candidate}"
-                  break
-                fi
-              done
-              
-              # If still empty, try to find it in the repo
-              if [[ -z "${file}" ]]; then
-                found="$(find . -type f \( -name "${test_name}.py" -o -name "${test_name}.sh" \) -path "*/testsuite/*" | head -n 1 | sed 's|^\./||' || true)"
-                file="${found}"
-              fi
-            fi
-
-            target="$(echo "${file}" | tr -d '\r' | sed 's|^\./||' | sed 's|^[[:space:]]*||;s|[[:space:]]*$||')"
-
-            if [[ -z "${target}" || -z "${status}" ]]; then
-              echo "WARN: could not resolve path for keyvalue file: $kv (status=${status})"
+          # Search BOTH full_run and rerun_prev directories
+          for OUTDIR in "${CURR_DIR}/full_run" "${CURR_DIR}/rerun_prev"; do
+            if [[ ! -d "${OUTDIR}" ]]; then
+              echo "Directory not found: ${OUTDIR}, skipping."
               continue
             fi
 
-            if [[ "${status}" == "failed" ]]; then
-              echo "${target}" >> "${FAILED}"
-            elif [[ "${status}" == "passed" ]]; then
-              echo "${target}" >> "${PASSED}"
-            fi
-          done < <(find "${OUTDIR}" -type f -name "test_keyvalue_result.txt" 2>/dev/null || true)
+            echo "Processing results from: ${OUTDIR}"
 
-          # Deduplicate
+            while IFS= read -r kv; do
+              status="$(grep -E '^status=' "$kv" | head -n 1 | cut -d= -f2- || true)"
+
+              file="$(grep -E '^file=' "$kv" | head -n 1 | cut -d= -f2- || true)"
+
+              if [[ -z "${file}" ]]; then
+                kv_dir="$(dirname "$kv")"
+                test_name="$(basename "$kv_dir")"
+                testsuite_dir="$(dirname "$kv_dir")"
+
+                for ext in py sh; do
+                  candidate="${testsuite_dir}/${test_name}.${ext}"
+                  repo_candidate="$(echo "${candidate}" | sed "s|^${OUTDIR}/||")"
+                  if [[ -f "${repo_candidate}" ]] || [[ -f "./${repo_candidate}" ]]; then
+                    file="${repo_candidate}"
+                    break
+                  fi
+                done
+
+                if [[ -z "${file}" ]]; then
+                  found="$(find . -type f \( -name "${test_name}.py" -o -name "${test_name}.sh" \) -path "*/testsuite/*" | head -n 1 | sed 's|^\./||' || true)"
+                  file="${found}"
+                fi
+              fi
+
+              target="$(echo "${file}" | tr -d '\r' | sed 's|^\./||' | sed 's|^[[:space:]]*||;s|[[:space:]]*$||')"
+
+              if [[ -z "${target}" || -z "${status}" ]]; then
+                echo "WARN: could not resolve path for keyvalue file: $kv (status=${status})"
+                continue
+              fi
+
+              if [[ "${status}" == "failed" ]]; then
+                echo "${target}" >> "${FAILED}"
+              elif [[ "${status}" == "passed" ]]; then
+                echo "${target}" >> "${PASSED}"
+              fi
+            done < <(find "${OUTDIR}" -type f -name "test_keyvalue_result.txt" 2>/dev/null || true)
+          done
+
           sort -u "${FAILED}" -o "${FAILED}"
           sort -u "${PASSED}" -o "${PASSED}"
 
           echo "Failed thorough count: $(wc -l < "${FAILED}" || echo 0)"
           echo "Passed thorough count: $(wc -l < "${PASSED}" || echo 0)"
           head -n 30 "${FAILED}" || true
-
 
       - name: Upload macOS gunittest thorough artifacts
         if: always()
