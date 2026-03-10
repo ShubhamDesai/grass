@@ -875,7 +875,7 @@ jobs:
           tr -d '\r' < "${FAILED_PREV}" \
             | sed '/^[[:space:]]*$/d' \
             | sed 's|^\./||' \
-            | sed -E 's|^.*/(full_run|rerun_prev)/||' \
+            | sed -E 's#^.*/(full_run|rerun_prev)/##' \
             | sort -u > /tmp/failed_prev_clean.txt
 
           # Keep only entries that actually exist in the repo's test list
@@ -985,7 +985,7 @@ jobs:
             tr -d '\r' < "${FAILED_PREV}" \
               | sed '/^[[:space:]]*$/d' \
               | sed 's|^\./||' \
-              | sed -E 's|^.*/(full_run|rerun_prev)/||' \
+              | sed -E 's#^.*/(full_run|rerun_prev)/##' \
               | sort -u > /tmp/failed_prev_clean.txt
 
             # Only keep entries that exist in ALL
@@ -1035,7 +1035,7 @@ jobs:
           tr -d '\r' < "${FAILED_PREV}" \
             | sed '/^[[:space:]]*$/d' \
             | sed 's|^\./||' \
-            | sed -E 's|^.*/(full_run|rerun_prev)/||' \
+            | sed -E 's#^.*/(full_run|rerun_prev)/##' \
             | sort -u > /tmp/failed_prev_clean.txt
 
           # Validate against repo
@@ -1104,7 +1104,7 @@ jobs:
 
               # Strip any artifact/output prefix to get repo-relative path
               if [[ -n "${file}" ]]; then
-                file="$(echo "${file}" | sed -E 's|^.*(full_run|rerun_prev)/||')"
+                file="$(echo "${file}" | sed -E 's#^.*(full_run|rerun_prev)/##')"
               fi
 
               # Fallback: derive from keyvalue file location
