@@ -1025,6 +1025,7 @@ jobs:
           # If no previous failed list, just run base cfg (no dynamic exclude)
           if [[ ! -s "${FAILED_PREV}" ]]; then
             echo "No previous failed list; running full gunittest thorough suite."
+            rm -rf "${HOME}/nc_spm_full_v2alpha2" || true
             .github/workflows/test_thorough.sh \
               --config .github/workflows/macos_gunittest.cfg \
               --output "${OUTDIR}"
@@ -1068,6 +1069,7 @@ jobs:
           ' "${TMP_CFG}" > "${TMP_CFG}.new"
           mv "${TMP_CFG}.new" "${TMP_CFG}"
 
+          rm -rf "${HOME}/nc_spm_full_v2alpha2" || true
           .github/workflows/test_thorough.sh \
             --config "${TMP_CFG}" \
             --output "${OUTDIR}"
