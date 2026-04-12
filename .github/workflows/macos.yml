@@ -203,12 +203,18 @@ jobs:
         if: always()
         shell: micromamba-shell {0}
         run: |
-          find . -type f \( -path "*/testsuite/*.py" -o -path "*/testsuite/*.sh" \) \
-            -not -path "./artifacts/*" \
-            | sed 's|^\./||' | sort > /tmp/original_thorough_tests.txt
-          echo "Thorough tests: $(wc -l < /tmp/original_thorough_tests.txt)"
           mkdir -p artifacts/original
-          cp /tmp/original_thorough_tests.txt artifacts/original/
+
+          # Capture what test_thorough.sh actually executed (from testreport keyvalue files)
+          find . -path "./testreport/*/test_keyvalue_result.txt" -type f \
+            | while IFS= read -r kv; do
+              file="$(grep -E '^file=' "$kv" | head -n 1 | cut -d= -f2- || true)"
+              if [[ -n "${file}" ]]; then
+                echo "${file}" | sed 's|^\./||'
+              fi
+            done | sort -u > artifacts/original/original_thorough_executed.txt
+
+          echo "Actually executed: $(wc -l < artifacts/original/original_thorough_executed.txt)"
 
       - name: Upload original test lists
         if: always()
