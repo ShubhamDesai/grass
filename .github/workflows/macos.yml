@@ -1142,7 +1142,7 @@ jobs:
               fi
 
               # Skip top-level keyvalue files and non-testsuite files
-              if [[ ! "${target}" == *"/testsuite/"* ]]; then
+              if [[ ! "${target}" == *"testsuite/"* ]]; then
                 echo "SKIP: not a testsuite file: ${target} (status=${status})"
                 continue
               fi
