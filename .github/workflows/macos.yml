@@ -1163,6 +1163,88 @@ jobs:
           echo "--- Failed files ---"
           head -n 30 "${FAILED}" || true
 
+      - name: Verify no duplicate executions between rerun and remaining
+        if: always()
+        shell: micromamba-shell {0}
+        run: |
+          PR_DIR="pr_${PR_ID}"
+          CURR_DIR="artifacts/${PR_DIR}/macos_gunittest_thorough"
+
+          mkdir -p artifacts/verification
+
+          echo "===== DUPLICATE CHECK: rerun vs remaining =====" | tee artifacts/verification/thorough_verification.txt
+
+          # Collect tests executed in rerun_prev
+          RERUN_TESTS="/tmp/rerun_executed.txt"
+          : > "${RERUN_TESTS}"
+          if [[ -d "${CURR_DIR}/rerun_prev" ]]; then
+            while IFS= read -r kv; do
+              file="$(grep -E '^file=' "$kv" | head -n 1 | cut -d= -f2- || true)"
+              if [[ -n "${file}" ]]; then
+                echo "${file}" | sed -E 's#^.*(full_run|rerun_prev)/##' | sed 's|^\./||'
+              fi
+            done < <(find "${CURR_DIR}/rerun_prev" -type f -name "test_keyvalue_result.txt" 2>/dev/null) \
+              | sort -u >> "${RERUN_TESTS}"
+          fi
+
+          # Collect tests executed in full_run
+          REMAINING_TESTS="/tmp/remaining_executed.txt"
+          : > "${REMAINING_TESTS}"
+          if [[ -d "${CURR_DIR}/full_run" ]]; then
+            while IFS= read -r kv; do
+              file="$(grep -E '^file=' "$kv" | head -n 1 | cut -d= -f2- || true)"
+              if [[ -n "${file}" ]]; then
+                echo "${file}" | sed -E 's#^.*(full_run|rerun_prev)/##' | sed 's|^\./||'
+              fi
+            done < <(find "${CURR_DIR}/full_run" -type f -name "test_keyvalue_result.txt" 2>/dev/null) \
+              | sort -u >> "${REMAINING_TESTS}"
+          fi
+
+          cp "${RERUN_TESTS}" artifacts/verification/rerun_executed.txt
+          cp "${REMAINING_TESTS}" artifacts/verification/remaining_executed.txt
+
+          echo "Tests in rerun:    $(wc -l < "${RERUN_TESTS}")" | tee -a artifacts/verification/thorough_verification.txt
+          cat "${RERUN_TESTS}" | tee -a artifacts/verification/thorough_verification.txt
+          echo "" | tee -a artifacts/verification/thorough_verification.txt
+          echo "Tests in remaining: $(wc -l < "${REMAINING_TESTS}")" | tee -a artifacts/verification/thorough_verification.txt
+          echo "" | tee -a artifacts/verification/thorough_verification.txt
+
+          # Find overlap
+          comm -12 "${RERUN_TESTS}" "${REMAINING_TESTS}" > artifacts/verification/duplicates.txt
+
+          if [[ -s artifacts/verification/duplicates.txt ]]; then
+            echo "ERROR: These tests ran in BOTH rerun and remaining:" | tee -a artifacts/verification/thorough_verification.txt
+            cat artifacts/verification/duplicates.txt | tee -a artifacts/verification/thorough_verification.txt
+          else
+            echo "No duplicates. Rerun and remaining are disjoint." | tee -a artifacts/verification/thorough_verification.txt
+          fi
+
+          # Total coverage check
+          ALL="${CURR_DIR}/all_tests.txt"
+          if [[ -f "${ALL}" ]]; then
+            cat "${RERUN_TESTS}" "${REMAINING_TESTS}" | sort -u > artifacts/verification/total_executed.txt
+            comm -23 <(sort -u "${ALL}") artifacts/verification/total_executed.txt > artifacts/verification/not_executed.txt
+            NOT_RUN=$(wc -l < artifacts/verification/not_executed.txt)
+            echo "" | tee -a artifacts/verification/thorough_verification.txt
+            echo "Total in repo:     $(wc -l < "${ALL}")" | tee -a artifacts/verification/thorough_verification.txt
+            echo "Total executed:    $(wc -l < artifacts/verification/total_executed.txt)" | tee -a artifacts/verification/thorough_verification.txt
+            echo "Not executed:      ${NOT_RUN}" | tee -a artifacts/verification/thorough_verification.txt
+            if [[ "${NOT_RUN}" -gt 0 ]]; then
+              echo "Missing tests:" | tee -a artifacts/verification/thorough_verification.txt
+              head -n 20 artifacts/verification/not_executed.txt | tee -a artifacts/verification/thorough_verification.txt
+            fi
+          fi
+
+          echo "================================================" | tee -a artifacts/verification/thorough_verification.txt
+
+      - name: Upload verification results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: thorough_verification_results
+          path: artifacts/verification/
+          retention-days: 7
+
       - name: Upload macOS gunittest thorough artifacts
         if: always()
         uses: actions/upload-artifact@v4
