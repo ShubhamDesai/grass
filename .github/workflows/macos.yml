@@ -1104,6 +1104,9 @@ jobs:
 
               file="$(grep -E '^file=' "$kv" | head -n 1 | cut -d= -f2- || true)"
 
+              # DEBUG: log keyvalue processing
+              echo "DEBUG-KV: kv=$kv file='${file}' status='${status}'"
+
               # Strip any artifact/output prefix to get repo-relative path
               if [[ -n "${file}" ]]; then
                 file="$(echo "${file}" | sed -E 's#^.*(full_run|rerun_prev)/##')"
@@ -1138,6 +1141,8 @@ jobs:
 
               if [[ -z "${target}" ]]; then
                 echo "WARN: could not resolve path for keyvalue file: $kv (status=${status})"
+                echo "DEBUG-WARN: file='$(grep -E '^file=' "$kv" || true)' name='$(grep -E '^name=' "$kv" || true)'"
+                echo "DEBUG-WARN: kv_dir=$(dirname "$kv") test_name=$(basename "$(dirname "$kv")")"
                 continue
               fi
 
