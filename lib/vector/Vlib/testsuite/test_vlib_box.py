@@ -89,6 +89,5 @@ class TestPointInBoundingBox(TestCase):
             msg="Point should be outside the bbox",
         )
 
-
 if __name__ == "__main__":
     test()
