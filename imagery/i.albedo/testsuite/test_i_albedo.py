@@ -7,6 +7,10 @@ class TestIAlbedo(TestCase):
     """Regression tests for the i.albedo GRASS module."""
 
     output_raster = "albedo_output"
+    def test_intentional_failure_for_ci(self):
+        """Intentional failure to validate CI failure."""
+        #self.assertTrue(True)
+        self.fail("Intentional failure.")
 
     def setUp(self):
         """Initialize temporary region with 10x10 grid"""
