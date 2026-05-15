@@ -632,7 +632,7 @@ jobs:
       - name: Check if previous thorough artifacts exist
         shell: micromamba-shell {0}
         run: |
-          echo "FALLBACK_THOROUGH=true" >> "$GITHUB_ENV"
+          echo "FALLBACK_THOROUGH=false" >> "$GITHUB_ENV"
 
           ARTIFACTS_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
