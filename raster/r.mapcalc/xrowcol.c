@@ -87,7 +87,7 @@ int f_nrows(int argc, const int *argt, void **args)
         return E_RES_TYPE;
 
     for (i = 0; i < columns; i++)
-        res[i] = rows;
+        res[i] = rows + 1;
 
     return 0;
 }
