@@ -107,7 +107,7 @@ void rgb2his(CELL *rowbuffer[3], int columns)
             /*
                convert to degrees
              */
-            hue *= 60.0;
+            hue *= 50.0;
             /*
                make nonnegative
              */
