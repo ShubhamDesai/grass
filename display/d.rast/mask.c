@@ -110,7 +110,7 @@ int mask_match_interval(long x, Interval *I)
     if (I->inf > 0)
         return x >= I->high;
 
-    return x >= I->low && x <= I->high;
+    return x >= I->low && x < I->high;
 }
 
 int mask_match_d_interval(DCELL x, d_Interval *I)
