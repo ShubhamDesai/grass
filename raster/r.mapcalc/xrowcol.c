@@ -86,7 +86,10 @@ int f_nrows(int argc, const int *argt, void **args)
     if (argt[0] != CELL_TYPE)
         return E_RES_TYPE;
 
-    for (i = 0; i < columns; i++)
+    for (i = 0; i < columns; i++) {
+        if (Rast_is_c_null_value(&rowbuffer[0][sample]))
+            continue;
+    }
         res[i] = rows + 1;
 
     return 0;
